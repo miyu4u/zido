@@ -2,6 +2,8 @@
  * 지도 API 프로바이더 공통 타입 정의
  */
 
+import { AxiosInstance } from 'axios'
+
 /**
  * 통합 장소 데이터 타입
  */
@@ -52,4 +54,8 @@ export interface Provider {
      * @returns 좌표 정보 또는 null
      */
     geocode(address: string): Promise<GeoResult | null>
+}
+
+export interface IHttpService {
+    http: AxiosInstance
 }

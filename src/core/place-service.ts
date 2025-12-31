@@ -1,0 +1,132 @@
+/**
+ * 장소 관련 도구 통합 클래스
+ * 지오코딩, 장소 검색, 주변 검색 기능 제공
+ */
+import { McpError } from '../infra/errors'
+import { logger } from '../infra/logger'
+import { haversineDistance } from '../tools/haversine'
+import { ProviderRouter } from '../vendors/provider-router'
+import { GeoGeocodeInput, GeoGeocodeOutput, PlaceResolveInput, PlaceResolveOutput, PlaceSearchNearbyInput, PlaceSearchNearbyOutput } from './typed'
+
+/**
+ * 장소 관련 기능을 통합 제공하는 서비스 클래스
+ */
+export class PlaceService {
+    /**
+     * 주소를 좌표로 변환 (지오코딩)
+     */
+    async geocode(input: GeoGeocodeInput): Promise<GeoGeocodeOutput | null> {
+        try {
+            const result = await ProviderRouter.geocode(input.address)
+
+            if (!result) {
+                return null
+            }
+
+            return {
+                lat: result.lat,
+                lng: result.lng,
+                provider: result.provider,
+                raw: result.raw,
+            }
+        } catch (error) {
+            logger.error({ error, address: input.address }, 'geocode failed')
+            throw error instanceof McpError
+                ? error
+                : new McpError(
+                    `Failed to geocode: ${error instanceof Error ? error.message : String(error)}`,
+                    'GEOCODE_ERROR',
+                )
+        }
+    }
+
+    /**
+     * 키워드로 장소 검색 (단일 결과)
+     */
+    async resolve(input: PlaceResolveInput): Promise<PlaceResolveOutput | null> {
+        try {
+            const result = await ProviderRouter.resolve(input.query)
+
+            if (!result) {
+                return null
+            }
+
+            return {
+                name: result.name,
+                address: result.address,
+                lat: result.lat,
+                lng: result.lng,
+                provider: result.provider,
+                raw: result.raw,
+            }
+        } catch (error) {
+            logger.error({ error, query: input.query }, 'resolve failed')
+            throw error instanceof McpError
+                ? error
+                : new McpError(
+                    `Failed to resolve place: ${error instanceof Error ? error.message : String(error)}`,
+                    'RESOLVE_ERROR',
+                )
+        }
+    }
+
+    /**
+     * 중심 좌표 기준 주변 장소 검색
+     */
+    async searchNearby(input: PlaceSearchNearbyInput): Promise<PlaceSearchNearbyOutput> {
+        try {
+            // Provider에서 주변 장소 검색
+            const results = await ProviderRouter.searchNearby(input.center, input.keyword, input.radiusM)
+
+            // 각 item에 거리 계산 및 추가
+            const itemsWithDistance = results.map((item) => {
+                const distanceM = haversineDistance(input.center.lat, input.center.lng, item.lat, item.lng)
+
+                return {
+                    ...item,
+                    distanceM: Math.round(distanceM), // 미터 단위, 반올림
+                }
+            })
+
+            // 중복 제거: (name + roadAddress) 기준
+            const seen = new Set<string>()
+            const deduplicated = itemsWithDistance.filter((item) => {
+                const key = `${item.name}|${item.roadAddress || item.address}`
+                if (seen.has(key)) {
+                    return false
+                }
+                seen.add(key)
+                return true
+            })
+
+            // distanceM 오름차순 정렬
+            deduplicated.sort((a, b) => a.distanceM - b.distanceM)
+
+            // 반경 내 장소만 필터링
+            const withinRadius = deduplicated.filter((item) => item.distanceM <= input.radiusM)
+
+            logger.debug(
+                {
+                    keyword: input.keyword,
+                    radiusM: input.radiusM,
+                    total: results.length,
+                    deduplicated: deduplicated.length,
+                    withinRadius: withinRadius.length,
+                },
+                'searchNearby completed',
+            )
+
+            return {
+                items: withinRadius,
+            }
+        } catch (error) {
+            logger.error({ error, input }, 'searchNearby failed')
+            throw error instanceof McpError
+                ? error
+                : new McpError(
+                    `Failed to search nearby: ${error instanceof Error ? error.message : String(error)}`,
+                    'SEARCH_NEARBY_ERROR',
+                )
+        }
+    }
+}

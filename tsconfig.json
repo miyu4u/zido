@@ -10,15 +10,19 @@
       "ES2022"
     ],
     "types": [
-      "node"
+      "node",
+      "jest"
     ],
     // Other Outputs
     "sourceMap": true,
     "declaration": true,
     "declarationMap": true,
+    // Performance Optimizations
+    "incremental": true,
+    "tsBuildInfoFile": ".tsbuildinfo",
     // Stricter Typechecking Options
     "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
+    "exactOptionalPropertyTypes": false,
     // Style Options
     "noImplicitReturns": true,
     "noUnusedLocals": true,
@@ -37,6 +41,7 @@
   ],
   "exclude": [
     "node_modules",
-    "dist"
+    "dist",
+    "@modelcontextprotocol"
   ]
 }
