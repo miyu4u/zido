@@ -5,9 +5,10 @@ import rateLimit from 'express-rate-limit'
 import helmet from 'helmet'
 import { NestFactory } from '@nestjs/core'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
-import { ConfigurationService, logger } from 'zido/configuration'
+import { config, logger } from 'zido/configuration'
 import { McpServerFactory } from 'zido/mcp-runtime'
 import { AppModule } from './app.module'
+import { McpExceptionFilter } from './transport/mcp-exception.filter'
 
 /**
  * stdio context만 만들고 MCP SDK transport를 stdout 경로에 연결한다.
@@ -24,7 +25,7 @@ async function bootstrapStdio(): Promise<void> {
  */
 async function bootstrapHttp(): Promise<void> {
     const app = await NestFactory.create(AppModule, { bodyParser: false, logger: false })
-    const configuration = app.get(ConfigurationService)
+    app.useGlobalFilters(new McpExceptionFilter())
     app.use(
         helmet({
             contentSecurityPolicy: {
@@ -39,7 +40,7 @@ async function bootstrapHttp(): Promise<void> {
     )
     app.use(
         cors({
-            origin: configuration.server.allowedOrigins,
+            origin: config.server.allowedOrigins,
             credentials: true,
             methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
             allowedHeaders: ['Content-Type', 'Authorization'],
@@ -56,13 +57,13 @@ async function bootstrapHttp(): Promise<void> {
         }),
     )
     app.use(express.json({ limit: '1mb' }))
-    await app.listen(configuration.server.httpPort)
-    logger.info({ port: configuration.server.httpPort, endpoint: '/mcp' }, 'MCP Server started in HTTP mode')
+    await app.listen(config.server.httpPort)
+    logger.info({ port: config.server.httpPort, endpoint: '/mcp' }, 'MCP Server started in HTTP mode')
 }
 
 /** transport 환경변수에 따라 exactly one Nest lifecycle을 시작한다. */
 async function bootstrap(): Promise<void> {
-    if (process.env.MCP_TRANSPORT === 'stdio') {
+    if (config.transport === 'stdio') {
         await bootstrapStdio()
         return
     }

@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { ConfigurationService, logger } from 'zido/configuration'
+import { config, logger } from 'zido/configuration'
 import { McpToolRegistrarService } from './register-tools'
 
 /**
@@ -8,9 +8,6 @@ import { McpToolRegistrarService } from './register-tools'
  */
 @Injectable()
 export class McpServerFactory {
-    @Inject(ConfigurationService)
-    private readonly configuration!: ConfigurationService
-
     @Inject(McpToolRegistrarService)
     private readonly registrar!: McpToolRegistrarService
 
@@ -18,14 +15,14 @@ export class McpServerFactory {
     async create(): Promise<McpServer> {
         const server = new McpServer(
             {
-                name: this.configuration.server.name,
-                version: this.configuration.server.version,
+                name: config.server.name,
+                version: config.server.version,
             },
             { capabilities: { tools: {} } },
         )
         await this.registrar.registerTools(server)
         logger.info(
-            { name: this.configuration.server.name, version: this.configuration.server.version },
+            { name: config.server.name, version: config.server.version },
             'MCP Server created (JSON-RPC 2.0 compliant)',
         )
         return server

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import axios, { AxiosInstance } from 'axios'
-import { ProviderError } from 'zido/configuration'
+import { ProviderException } from 'zido/configuration'
 import type { GeoResult, IHttpService, Place, Provider } from '../typed'
 import type {
     GoogleGeocodeResponse,
@@ -25,7 +25,7 @@ export class GoogleVendor implements Provider, IHttpService {
 
     constructor(config: GoogleProviderConfig) {
         if (!config.apiKey) {
-            throw new ProviderError('Google API key is required', 'google', 'MISSING_API_KEY')
+            throw new ProviderException('Google API key is required', 'google', 'MISSING_API_KEY')
         }
         this.apiKey = config.apiKey
         this.http = axios.create({
@@ -64,7 +64,7 @@ export class GoogleVendor implements Provider, IHttpService {
 
             return this.toPlace(place)
         } catch (error) {
-            throw this.toProviderError('Failed to resolve place', error)
+            throw this.toProviderException('Failed to resolve place', error)
         }
     }
 
@@ -143,7 +143,7 @@ export class GoogleVendor implements Provider, IHttpService {
                 .map((place) => this.toPlace(place))
                 .filter((item): item is Place => item !== null)
         } catch (error) {
-            throw this.toProviderError('Failed to search nearby', error)
+            throw this.toProviderException('Failed to search nearby', error)
         }
     }
 
@@ -165,7 +165,7 @@ export class GoogleVendor implements Provider, IHttpService {
                 if (response.data.status === 'ZERO_RESULTS') {
                     return null
                 }
-                throw new ProviderError(
+                throw new ProviderException(
                     `Geocode failed: ${response.data.error_message || response.data.status}`,
                     this.providerName,
                     'REQUEST_FAILED',
@@ -179,7 +179,7 @@ export class GoogleVendor implements Provider, IHttpService {
 
             return this.toGeoResult(result)
         } catch (error) {
-            throw this.toProviderError('Failed to geocode address', error)
+            throw this.toProviderException('Failed to geocode address', error)
         }
     }
 
@@ -250,10 +250,10 @@ export class GoogleVendor implements Provider, IHttpService {
      * Provider 오류로 변환합니다.
      * @param message 오류 메시지
      * @param error 원본 오류
-     * @returns ProviderError 객체
+     * @returns ProviderException 객체
      */
-    private toProviderError(message: string, error: unknown): ProviderError {
+    private toProviderException(message: string, error: unknown): ProviderException {
         const detail = error instanceof Error ? error.message : String(error)
-        return new ProviderError(`${message}: ${detail}`, this.providerName, 'REQUEST_FAILED')
+        return new ProviderException(`${message}: ${detail}`, this.providerName, 'REQUEST_FAILED')
     }
 }

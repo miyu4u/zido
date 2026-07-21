@@ -1,7 +1,7 @@
 
 import { Injectable } from '@nestjs/common'
 import axios, { AxiosInstance } from 'axios'
-import { ProviderError } from 'zido/configuration'
+import { ProviderException } from 'zido/configuration'
 import type { GeoResult, IHttpService, Place, Provider } from '../typed'
 import type {
     KakaoAddressSearchResponse,
@@ -23,7 +23,7 @@ export class KakaoVendor implements Provider, IHttpService {
 
     constructor(config: KakaoProviderConfig) {
         if (!config.restKey) {
-            throw new ProviderError('Kakao REST API key is required', 'kakao', 'MISSING_API_KEY')
+            throw new ProviderException('Kakao REST API key is required', 'kakao', 'MISSING_API_KEY')
         }
         this.restKey = config.restKey
         this.http = axios.create({
@@ -55,7 +55,7 @@ export class KakaoVendor implements Provider, IHttpService {
 
             return this.toPlace(doc)
         } catch (error) {
-            throw this.toProviderError('Failed to resolve place', error)
+            throw this.toProviderException('Failed to resolve place', error)
         }
     }
 
@@ -84,7 +84,7 @@ export class KakaoVendor implements Provider, IHttpService {
                 .map((doc) => this.toPlace(doc))
                 .filter((item): item is Place => item !== null)
         } catch (error) {
-            throw this.toProviderError('Failed to search nearby', error)
+            throw this.toProviderException('Failed to search nearby', error)
         }
     }
 
@@ -109,7 +109,7 @@ export class KakaoVendor implements Provider, IHttpService {
 
             return this.toGeoResult(doc)
         } catch (error) {
-            throw this.toProviderError('Failed to geocode address', error)
+            throw this.toProviderException('Failed to geocode address', error)
         }
     }
 
@@ -177,10 +177,10 @@ export class KakaoVendor implements Provider, IHttpService {
      * Provider 오류로 변환합니다.
      * @param message 오류 메시지
      * @param error 원본 오류
-     * @returns ProviderError 객체
+     * @returns ProviderException 객체
      */
-    private toProviderError(message: string, error: unknown): ProviderError {
+    private toProviderException(message: string, error: unknown): ProviderException {
         const detail = error instanceof Error ? error.message : String(error)
-        return new ProviderError(`${message}: ${detail}`, this.providerName, 'REQUEST_FAILED')
+        return new ProviderException(`${message}: ${detail}`, this.providerName, 'REQUEST_FAILED')
     }
 }

@@ -2,19 +2,46 @@
  * 장소 관련 도구 통합 클래스
  * 지오코딩, 장소 검색, 주변 검색 기능 제공
  */
-import { Inject, Injectable } from '@nestjs/common'
-import { McpError, logger } from 'zido/configuration'
+import { Injectable } from '@nestjs/common'
+import { McpException, logger } from 'zido/configuration'
 import { haversineDistance } from './haversine'
 import { ProviderRouterService } from 'zido/map-providers'
-import { GeoGeocodeInput, GeoGeocodeOutput, PlaceResolveInput, PlaceResolveOutput, PlaceSearchNearbyInput, PlaceSearchNearbyOutput } from './typed'
+import type {
+    GeoGeocodeInput,
+    GeoGeocodeOutput,
+    PlaceResolveInput,
+    PlaceResolveOutput,
+    PlaceSearchNearbyInput,
+    PlaceSearchNearbyOutput,
+} from './typed'
+
+/**
+ * 장소 orchestration이 외부에 제공하는 작업 contract를 정의한다.
+ */
+export interface PlaceServiceInterface {
+    /**
+     * 주소를 좌표로 변환한다.
+     */
+    geocode(input: GeoGeocodeInput): Promise<GeoGeocodeOutput | null>
+
+    /**
+     * 검색어에 해당하는 단일 장소를 반환한다.
+     */
+    resolve(input: PlaceResolveInput): Promise<PlaceResolveOutput | null>
+
+    /**
+     * 중심 좌표 주변의 장소를 거리순으로 반환한다.
+     */
+    searchNearby(input: PlaceSearchNearbyInput): Promise<PlaceSearchNearbyOutput>
+}
 
 /**
  * 장소 관련 기능을 통합 제공하는 서비스 클래스
  */
 @Injectable()
-export class PlaceService {
-    @Inject(ProviderRouterService)
-    private readonly providerRouter!: ProviderRouterService
+export class PlaceService implements PlaceServiceInterface {
+    constructor(private readonly providerRouter: ProviderRouterService) {}
+
     /**
      * 주소를 좌표로 변환 (지오코딩)
      */
@@ -34,9 +61,9 @@ export class PlaceService {
             }
         } catch (error) {
             logger.error({ error, address: input.address }, 'geocode failed')
-            throw error instanceof McpError
+            throw error instanceof McpException
                 ? error
-                : new McpError(
+                : new McpException(
                     `Failed to geocode: ${error instanceof Error ? error.message : String(error)}`,
                     'GEOCODE_ERROR',
                 )
@@ -64,9 +91,9 @@ export class PlaceService {
             }
         } catch (error) {
             logger.error({ error, query: input.query }, 'resolve failed')
-            throw error instanceof McpError
+            throw error instanceof McpException
                 ? error
-                : new McpError(
+                : new McpException(
                     `Failed to resolve place: ${error instanceof Error ? error.message : String(error)}`,
                     'RESOLVE_ERROR',
                 )
@@ -124,9 +151,9 @@ export class PlaceService {
             }
         } catch (error) {
             logger.error({ error, input }, 'searchNearby failed')
-            throw error instanceof McpError
+            throw error instanceof McpException
                 ? error
-                : new McpError(
+                : new McpException(
                     `Failed to search nearby: ${error instanceof Error ? error.message : String(error)}`,
                     'SEARCH_NEARBY_ERROR',
                 )

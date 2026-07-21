@@ -42,13 +42,8 @@ export class McpHttpTransportController implements OnModuleInit {
         response.status(200).json({ message: 'Session closed' })
     }
 
-    /** transport 오류를 HTTP 500 응답으로 변환한다. */
+    /** transport에서 발생한 Exception을 Nest global filter로 전달한다. */
     private async handle(request: Request, response: Response, body: unknown): Promise<void> {
-        try {
-            await this.transport.handleRequest(request, response, body)
-        } catch (error) {
-            logger.error({ error }, 'Error handling /mcp')
-            if (!response.headersSent) response.status(500).json({ error: 'Internal server error' })
-        }
+        await this.transport.handleRequest(request, response, body)
     }
 }

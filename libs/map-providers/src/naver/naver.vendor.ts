@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import axios, { AxiosInstance } from 'axios'
-import { ProviderError } from 'zido/configuration'
+import { ProviderException } from 'zido/configuration'
 import type { GeoResult, IHttpService, Place, Provider } from '../typed'
 import type {
     NaverGeocodeAddress,
@@ -43,7 +43,7 @@ export class NaverVendor implements Provider, IHttpService {
 
     constructor(config: NaverProviderConfig) {
         if (!config.clientId || !config.clientSecret) {
-            throw new ProviderError('Naver Client ID and Secret are required', 'naver', 'MISSING_API_KEY')
+            throw new ProviderException('Naver Client ID and Secret are required', 'naver', 'MISSING_API_KEY')
         }
         this.clientId = config.clientId
         this.clientSecret = config.clientSecret
@@ -85,7 +85,7 @@ export class NaverVendor implements Provider, IHttpService {
 
             return this.toPlace(item)
         } catch (error) {
-            throw this.toProviderError('Failed to resolve place', error)
+            throw this.toProviderException('Failed to resolve place', error)
         }
     }
 
@@ -111,7 +111,7 @@ export class NaverVendor implements Provider, IHttpService {
 
             return response.data.items.map((item) => this.toPlace(item)).filter((item): item is Place => item !== null)
         } catch (error) {
-            throw this.toProviderError('Failed to search nearby', error)
+            throw this.toProviderException('Failed to search nearby', error)
         }
     }
 
@@ -129,7 +129,7 @@ export class NaverVendor implements Provider, IHttpService {
             })
 
             if (response.data.status && response.data.status !== 'OK') {
-                throw new ProviderError(
+                throw new ProviderException(
                     `Geocode failed: ${response.data.errorMessage || response.data.status}`,
                     this.providerName,
                     'REQUEST_FAILED',
@@ -143,7 +143,7 @@ export class NaverVendor implements Provider, IHttpService {
 
             return this.toGeoResult(doc)
         } catch (error) {
-            throw this.toProviderError('Failed to geocode address', error)
+            throw this.toProviderException('Failed to geocode address', error)
         }
     }
 
@@ -230,10 +230,10 @@ export class NaverVendor implements Provider, IHttpService {
      * Provider 오류로 변환합니다.
      * @param message 오류 메시지
      * @param error 원본 오류
-     * @returns ProviderError 객체
+     * @returns ProviderException 객체
      */
-    private toProviderError(message: string, error: unknown): ProviderError {
+    private toProviderException(message: string, error: unknown): ProviderException {
         const detail = error instanceof Error ? error.message : String(error)
-        return new ProviderError(`${message}: ${detail}`, this.providerName, 'REQUEST_FAILED')
+        return new ProviderException(`${message}: ${detail}`, this.providerName, 'REQUEST_FAILED')
     }
 }

@@ -34,8 +34,7 @@ describe('PlaceService', () => {
                 },
             ]),
         } as unknown as ProviderRouterService
-        const service = new PlaceService()
-        Object.defineProperty(service, 'providerRouter', { value: router })
+        const service = new PlaceService(router)
 
         const result = await service.searchNearby({
             center: { lat: 37.5, lng: 127 },
