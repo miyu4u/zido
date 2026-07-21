@@ -427,9 +427,9 @@ stdio application은 `McpServerFactory`와 `StdioServerTransport`를 한 번 연
 
 ## 9. `zido-cli`
 
-### 기본 선택: direct domain CLI
+### 선택: direct domain CLI
 
-기본 CLI는 MCP server를 거치지 않고 `PlaceService`를 직접 호출합니다.
+이번 설계에서는 MCP server를 거치지 않고 `PlaceService`를 직접 호출하는 direct domain CLI를 선택합니다.
 
 ```text
 zido-cli
@@ -479,7 +479,7 @@ CLI가 소유하지 않는 항목:
 
 ### MCP client CLI가 필요한 경우
 
-CLI가 MCP server를 검증하거나 외부 MCP server를 호출하는 목적이라면 direct domain CLI와 다른 application contract가 필요합니다.
+현재 설계에서는 MCP client CLI를 선택하지 않습니다. CLI가 MCP server를 검증하거나 외부 MCP server를 호출해야 하는 요구가 생기면 direct domain CLI와 다른 application contract로 별도 정의합니다.
 
 ```text
 zido-cli
@@ -600,7 +600,7 @@ singleton transport를 migration 결과로 남기지 않습니다.
 
 ### 5단계: CLI 추가
 
-기본은 direct domain CLI로 구현합니다.
+direct domain CLI를 선택하고 다음 범위로 구현합니다.
 
 - `PlaceDomainModule` import
 - command parser
