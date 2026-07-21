@@ -40,6 +40,8 @@ Zido는 Nest CLI workspace로 구현된 MCP(Model Context Protocol) 서버입니
 
 하나의 `zido-server` application이 `MCP_TRANSPORT` 값에 따라 `stdio` 또는 HTTP lifecycle을 선택해 로컬 호스트/원격 클라이언트 환경을 모두 지원합니다.
 
+HTTP, stdio, CLI application으로 분리하는 target architecture와 Streamable HTTP session/CORS 설계는 [Multi-App Architecture](docs/multi-app-architecture.md)를 참고합니다. 해당 문서는 현재 구현이 아니라 migration 설계안입니다.
+
 ## 프로젝트 구조
 
 ```
