@@ -1,24 +1,29 @@
+import { HttpException, HttpStatus } from '@nestjs/common'
+
 /**
- * 커스텀 에러 클래스
+ * MCP 요청 처리 실패를 HTTP Exception contract로 전달한다.
  */
-export class McpError extends Error {
+export class McpException extends HttpException {
     constructor(
         message: string,
-        public code: string,
-        public statusCode?: number,
+        public readonly code: string,
+        public readonly statusCode: number = HttpStatus.INTERNAL_SERVER_ERROR,
     ) {
-        super(message)
-        this.name = 'McpError'
+        super(message, statusCode)
+        this.name = 'McpException'
     }
 }
 
-export class ProviderError extends McpError {
+/**
+ * 외부 provider 호출 실패에 provider 식별자를 추가한다.
+ */
+export class ProviderException extends McpException {
     constructor(
         message: string,
-        public provider: string,
+        public readonly provider: string,
         code: string = 'PROVIDER_ERROR',
     ) {
         super(message, code)
-        this.name = 'ProviderError'
+        this.name = 'ProviderException'
     }
 }
