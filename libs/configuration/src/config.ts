@@ -14,10 +14,6 @@ export const config = {
         allowedOrigins: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
     },
     /**
-     * stdio 외의 값은 HTTP transport로 처리해 실행 경로를 결정한다.
-     */
-    transport: process.env.MCP_TRANSPORT === 'stdio' ? 'stdio' : 'http',
-    /**
      * provider fallback 순서와 각 provider의 credential 설정이다.
      */
     providers: {

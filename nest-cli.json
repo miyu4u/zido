@@ -2,19 +2,37 @@
   "$schema": "https://json.schemastore.org/nest-cli",
   "collection": "@nestjs/schematics",
   "prefix": "zido",
-  "sourceRoot": "apps/zido-server/src",
+  "sourceRoot": "apps/zido-http-server/src",
   "compilerOptions": {
     "deleteOutDir": true,
     "webpack": true
   },
   "projects": {
-    "zido-server": {
+    "zido-http-server": {
       "type": "application",
-      "root": "apps/zido-server",
+      "root": "apps/zido-http-server",
       "entryFile": "main",
-      "sourceRoot": "apps/zido-server/src",
+      "sourceRoot": "apps/zido-http-server/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/zido-server/tsconfig.app.json"
+        "tsConfigPath": "apps/zido-http-server/tsconfig.app.json"
+      }
+    },
+    "zido-stdio-server": {
+      "type": "application",
+      "root": "apps/zido-stdio-server",
+      "entryFile": "main",
+      "sourceRoot": "apps/zido-stdio-server/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/zido-stdio-server/tsconfig.app.json"
+      }
+    },
+    "zido-cli": {
+      "type": "application",
+      "root": "apps/zido-cli",
+      "entryFile": "main",
+      "sourceRoot": "apps/zido-cli/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/zido-cli/tsconfig.app.json"
       }
     },
     "configuration": {
