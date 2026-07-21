@@ -2,7 +2,7 @@
 
 ![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg)
 
-Zido는 Node.js + TypeScript로 구현된 MCP(Model Context Protocol) 서버입니다. 카카오/네이버/구글 지도 API를 하나의 인터페이스로 묶어 장소 검색과 지오코딩을 일관된 방식으로 제공합니다.
+Zido는 Nest CLI workspace로 구현된 MCP(Model Context Protocol) 서버입니다. 카카오/네이버/구글 지도 API를 하나의 인터페이스로 묶어 장소 검색과 지오코딩을 일관된 방식으로 제공합니다.
 
 ## 핵심 기능
 
@@ -19,6 +19,7 @@ Zido는 Node.js + TypeScript로 구현된 MCP(Model Context Protocol) 서버입�
 ## 기술 스택
 
 - Node.js 20+
+- NestJS 11
 - TypeScript (ESM)
 - @modelcontextprotocol/sdk
 - Express (HTTP 모드)
@@ -29,7 +30,7 @@ Zido는 Node.js + TypeScript로 구현된 MCP(Model Context Protocol) 서버입�
 
 ### Provider
 
-각 지도 API는 `Provider` 인터페이스를 구현하며, `provider-router`가 설정된 우선순위에 따라 provider를 초기화합니다.
+각 지도 API는 `Provider` 인터페이스를 구현하며, `ProviderRouterService`가 설정된 우선순위에 따라 provider를 초기화합니다.
 
 ### Fallback
 
@@ -37,22 +38,25 @@ Zido는 Node.js + TypeScript로 구현된 MCP(Model Context Protocol) 서버입�
 
 ### 전송 계층 분리
 
-`stdio`와 `http` 엔트리 포인트를 분리해 로컬 호스트/원격 클라이언트 환경을 모두 지원합니다.
+하나의 `zido-server` application이 `MCP_TRANSPORT` 값에 따라 `stdio` 또는 HTTP lifecycle을 선택해 로컬 호스트/원격 클라이언트 환경을 모두 지원합니다.
 
 ## 프로젝트 구조
 
 ```
-src/
-  app/          # stdio/http 엔트리 포인트
-  core/         # MCP 서버 생성 및 도구 등록
-  vendors/      # provider 및 fallback 라우팅
-  infra/        # 설정, 로깅, 에러 공통 모듈
+apps/zido-server/
+  src/          # Nest application과 transport bootstrap
+libs/
+  configuration/  # 환경변수, logger, error, validation
+  map-providers/  # Kakao/Naver/Google provider와 fallback
+  place-domain/   # 장소 orchestration과 거리 계산
+  mcp-runtime/    # MCP server factory와 tool registrar
+.backup/          # migration 전 standalone source 보관
 ```
 
 ## 설치
 
 ```bash
-npm install -D
+npm install
 ```
 
 ## 설정
@@ -131,7 +135,7 @@ PROVIDER_ORDER=kakao,naver,google
 Claude Desktop 등 로컬 호스트에서 사용:
 
 ```bash
-npm run dev:stdio
+npm run start:stdio
 ```
 
 ### HTTP 모드 (원격 클라이언트용)
@@ -139,7 +143,7 @@ npm run dev:stdio
 MCP Inspector 등 원격 클라이언트에서 사용:
 
 ```bash
-npm run dev:http
+npm run start:http
 ```
 
 서버가 시작되면 `http://localhost:8000/mcp` 엔드포인트로 접근할 수 있습니다.
@@ -150,12 +154,11 @@ npm run dev:http
 npm run build
 ```
 
-빌드된 파일은 `dist/` 디렉토리에 생성됩니다:
+빌드된 파일은 `dist/apps/zido-server/` 디렉토리에 생성됩니다:
 
 ```bash
 # 빌드된 파일 실행
-npm run start:stdio
-npm run start:http
+npm run start:prod
 ```
 
 ## 데모 시나리오
@@ -173,7 +176,7 @@ MCP Inspector 또는 Claude Desktop에서 `tools/list`로 도구 목록을 확�
     "zido": {
       "command": "node",
       "args": [
-        "$WORKSPACE/dist/stdio.js"
+        "$WORKSPACE/dist/apps/zido-server/main.js"
       ],
       "env": {
         "KAKAO_REST_KEY": ""

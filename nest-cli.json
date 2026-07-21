@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json.schemastore.org/nest-cli",
+  "collection": "@nestjs/schematics",
+  "prefix": "zido",
+  "sourceRoot": "apps/zido-server/src",
+  "compilerOptions": {
+    "deleteOutDir": true,
+    "webpack": true
+  },
+  "projects": {
+    "zido-server": {
+      "type": "application",
+      "root": "apps/zido-server",
+      "entryFile": "main",
+      "sourceRoot": "apps/zido-server/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/zido-server/tsconfig.app.json"
+      }
+    },
+    "configuration": {
+      "type": "library",
+      "root": "libs/configuration",
+      "entryFile": "index",
+      "sourceRoot": "libs/configuration/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/configuration/tsconfig.lib.json"
+      }
+    },
+    "map-providers": {
+      "type": "library",
+      "root": "libs/map-providers",
+      "entryFile": "index",
+      "sourceRoot": "libs/map-providers/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/map-providers/tsconfig.lib.json"
+      }
+    },
+    "mcp-runtime": {
+      "type": "library",
+      "root": "libs/mcp-runtime",
+      "entryFile": "index",
+      "sourceRoot": "libs/mcp-runtime/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/mcp-runtime/tsconfig.lib.json"
+      }
+    },
+    "place-domain": {
+      "type": "library",
+      "root": "libs/place-domain",
+      "entryFile": "index",
+      "sourceRoot": "libs/place-domain/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/place-domain/tsconfig.lib.json"
+      }
+    }
+  }
+}

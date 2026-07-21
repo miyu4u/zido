@@ -1,58 +1,93 @@
 {
-  "name": "zido",
-  "version": "1.0.0",
-  "description": "MCP 서버 for 지도 검색 (카카오/네이버/구글)",
-  "main": "dist/stdio.js",
+  "name": "zido-server",
+  "version": "0.0.1",
+  "description": "",
+  "author": "",
+  "private": true,
+  "license": "UNLICENSED",
   "scripts": {
-    "dev:stdio": "tsx src/app/stdio.ts",
-    "dev:http": "tsx src/app/http.ts",
-    "prebuild": "rm -rf dist || true",
-    "build": "tsup src/app/stdio.ts src/app/http.ts --format cjs --dts",
-    "start:stdio": "node dist/stdio.js",
-    "start:http": "node dist/http.js",
-    "format": "prettier --write \"src/**/*.ts\"",
+    "build": "nest build zido-server",
+    "format": "prettier --write \"apps/**/*.ts\" \"libs/**/*.ts\"",
+    "start": "nest start zido-server",
+    "start:dev": "nest start zido-server --watch",
+    "start:stdio": "MCP_TRANSPORT=stdio nest start zido-server",
+    "start:http": "MCP_TRANSPORT=http nest start zido-server",
+    "start:prod": "node dist/apps/zido-server/main.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:cov": "jest --coverage",
+    "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
+    "test:providers": "jest --runInBand test/providers.spec.ts"
   },
-  "keywords": [
-    "mcp",
-    "map",
-    "geocoding"
-  ],
-  "license": "ISC",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0",
-    "axios": "^1.13.2",
-    "cors": "^2.8.5",
-    "dotenv": "^17.2.3",
-    "express": "^4.18.2",
-    "express-rate-limit": "^8.2.1",
-    "helmet": "^8.1.0",
-    "pino": "^8.16.2",
-    "zod": "^3.22.4"
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@nestjs/common": "^11.0.1",
+    "@nestjs/core": "^11.0.1",
+    "@nestjs/platform-express": "^11.0.1",
+    "axios": "^1.18.1",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express-rate-limit": "^8.6.0",
+    "helmet": "^8.3.0",
+    "pino": "^10.3.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.2.0",
+    "@eslint/js": "^9.18.0",
+    "@nestjs/cli": "^11.0.0",
+    "@nestjs/schematics": "^11.0.0",
+    "@nestjs/testing": "^11.0.1",
     "@types/cors": "^2.8.19",
-    "@types/express": "^4.17.21",
-    "@types/jest": "^29.5.14",
-    "@types/node": "^20.10.6",
-    "esbuild": "^0.27.2",
-    "jest": "^29.7.0",
-    "prettier": "^3.7.4",
-    "ts-jest": "^29.1.2",
-    "tsup": "^8.0.1",
-    "tsx": "^4.7.0",
-    "typescript": "^5.9.3"
+    "@types/express": "^5.0.0",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.0.0",
+    "@types/supertest": "^7.0.0",
+    "eslint": "^9.18.0",
+    "eslint-config-prettier": "^10.0.1",
+    "eslint-plugin-prettier": "^5.2.2",
+    "globals": "^17.0.0",
+    "jest": "^30.0.0",
+    "prettier": "^3.4.2",
+    "source-map-support": "^0.5.21",
+    "supertest": "^7.0.0",
+    "ts-jest": "^29.2.5",
+    "ts-loader": "^9.5.2",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.20.0"
   },
-  "prettier": {
-    "singleQuote": true,
-    "trailingComma": "all",
-    "arrowParens": "always",
-    "printWidth": 120,
-    "tabWidth": 4,
-    "useTabs": false,
-    "endOfLine": "lf",
-    "semi": false
+  "jest": {
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
+    "rootDir": ".",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "collectCoverageFrom": [
+      "**/*.(t|j)s"
+    ],
+    "coverageDirectory": "./coverage",
+    "testEnvironment": "node",
+    "roots": [
+      "<rootDir>/apps/zido-server/src/",
+      "<rootDir>/libs/",
+      "<rootDir>/test/"
+    ],
+    "moduleNameMapper": {
+      "^zido/configuration(|/.*)$": "<rootDir>/libs/configuration/src/$1",
+      "^zido/map-providers(|/.*)$": "<rootDir>/libs/map-providers/src/$1",
+      "^zido/mcp-runtime(|/.*)$": "<rootDir>/libs/mcp-runtime/src/$1",
+      "^zido/place-domain(|/.*)$": "<rootDir>/libs/place-domain/src/$1"
+    }
   }
 }
