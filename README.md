@@ -28,6 +28,12 @@ Zido는 Nest CLI workspace로 구현된 MCP(Model Context Protocol) 서버입니
 
 ## 아키텍처 요약
 
+Zido는 현재 세 개의 application으로 구현되어 있습니다.
+
+- `apps/zido-http-server` — Streamable HTTP MCP server
+- `apps/zido-stdio-server` — stdio MCP server
+- `apps/zido-cli` — domain을 직접 호출하는 CLI
+
 ### Provider
 
 각 지도 API는 `Provider` 인터페이스를 구현하며, `ProviderRouterService`가 설정된 우선순위에 따라 provider를 초기화합니다.
@@ -38,21 +44,33 @@ Zido는 Nest CLI workspace로 구현된 MCP(Model Context Protocol) 서버입니
 
 ### 전송 계층 분리
 
-하나의 `zido-server` application이 `MCP_TRANSPORT` 값에 따라 `stdio` 또는 HTTP lifecycle을 선택해 로컬 호스트/원격 클라이언트 환경을 모두 지원합니다.
+HTTP, stdio, CLI는 서로 다른 application으로 분리되어 있습니다. 각 application은 독립 entrypoint와 실행 경로를 가집니다.
 
-HTTP, stdio, CLI application으로 분리하는 target architecture와 Streamable HTTP session/CORS 설계는 [Multi-App Architecture](docs/multi-app-architecture.md)를 참고합니다. 해당 문서는 현재 구현이 아니라 migration 설계안입니다.
+```bash
+npm run start:http   # HTTP server
+npm run start:stdio  # stdio server
+node dist/apps/zido-cli/main.js  # CLI
+```
+
+Streamable HTTP는 세션 기반의 stateful mode를 사용합니다. session은 process-local in-memory registry로 관리되므로, 수평 확장 환경에서는 shared store나 sticky session이 필요합니다. 현재 구현과 제한 사항은 [Multi-App Architecture](docs/multi-app-architecture.md)를 참고합니다.
 
 ## 프로젝트 구조
 
 ```
-apps/zido-server/
-  src/          # Nest application과 transport bootstrap
+apps/zido-http-server/
+  src/          # Streamable HTTP MCP server
+apps/zido-stdio-server/
+  src/          # stdio MCP server
+apps/zido-cli/
+  src/main.ts   # domain 직접 호출 CLI entrypoint
+  src/commands/
+  src/app.module.ts
+  tsconfig.app.json
 libs/
   configuration/  # 환경변수, logger, error, validation
   map-providers/  # Kakao/Naver/Google provider와 fallback
   place-domain/   # 장소 orchestration과 거리 계산
   mcp-runtime/    # MCP server factory와 tool registrar
-.backup/          # migration 전 standalone source 보관
 ```
 
 ## 설치
@@ -150,17 +168,28 @@ npm run start:http
 
 서버가 시작되면 `http://localhost:8000/mcp` 엔드포인트로 접근할 수 있습니다.
 
+stateful Streamable HTTP에서는 클라이언트별 session이 유지되므로, `MCP-Session-Id`가 없는 요청은 initialize로 처리되고 이후 요청은 같은 session을 재사용해야 합니다. 여러 client를 동시에 지원하려면 session registry와 expiry 정책이 필요합니다.
+
+### CLI 모드
+
+장소 검색과 지오코딩을 직접 실행할 때 사용합니다:
+
+```bash
+node dist/apps/zido-cli/main.js
+```
+
 ## 빌드
 
 ```bash
 npm run build
 ```
 
-빌드된 파일은 `dist/apps/zido-server/` 디렉토리에 생성됩니다:
+빌드된 파일은 각 application별 디렉토리에 생성됩니다:
 
 ```bash
-# 빌드된 파일 실행
-npm run start:prod
+node dist/apps/zido-http-server/main.js
+node dist/apps/zido-stdio-server/main.js
+node dist/apps/zido-cli/main.js
 ```
 
 ## 데모 시나리오
@@ -178,7 +207,7 @@ MCP Inspector 또는 Claude Desktop에서 `tools/list`로 도구 목록을 확�
     "zido": {
       "command": "node",
       "args": [
-        "$WORKSPACE/dist/apps/zido-server/main.js"
+        "$WORKSPACE/dist/apps/zido-stdio-server/main.js"
       ],
       "env": {
         "KAKAO_REST_KEY": ""

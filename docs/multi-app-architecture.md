@@ -2,13 +2,13 @@
 
 ## 문서 상태
 
-이 문서는 현재 `apps/zido-server`를 다음 세 개의 application으로 분리하기 위한 설계안입니다.
+이 문서는 현재 구현된 multi-app workspace의 구조와 제한 사항을 정리합니다.
 
 - `zido-http-server`: Streamable HTTP MCP server
 - `zido-stdio-server`: stdio MCP server
 - `zido-cli`: 직접 domain을 호출하는 CLI
 
-이 문서는 설계와 migration 기준을 정의하며, 문서 작성 시점에 실제 source tree에 적용된 변경을 의미하지 않습니다.
+세 application은 다음과 같습니다.
 
 ## 1. 설계 목표
 
@@ -30,12 +30,12 @@
 
 ## 2. 현재 구조
 
-현재 workspace에는 하나의 application이 두 transport lifecycle을 선택합니다.
+현재 workspace는 세 개의 application으로 구성됩니다.
 
 ```text
-apps/zido-server/src/main.ts
-  ├── bootstrapStdio()
-  └── bootstrapHttp()
+apps/zido-http-server/src/main.ts
+apps/zido-stdio-server/src/main.ts
+apps/zido-cli/src/main.ts
 ```
 
 MCP server와 tool은 library에 있습니다.
@@ -52,15 +52,17 @@ libs/mcp-runtime
 
 | 영역 | 현재 책임 |
 | --- | --- |
-| `apps/zido-server` | Nest bootstrap, stdio/HTTP 선택, HTTP controller, HTTP middleware |
+| `apps/zido-http-server` | Nest bootstrap, HTTP controller, HTTP middleware |
+| `apps/zido-stdio-server` | Nest bootstrap, stdio transport |
+| `apps/zido-cli` | direct domain CLI |
 | `libs/mcp-runtime` | `McpServer` 생성, capability 선언, tool 등록 |
 | `libs/place-domain` | 장소 검색, geocoding, 거리 계산, domain orchestration |
 | `libs/map-providers` | provider adapter와 fallback routing |
 | `libs/configuration` | 환경변수, validation, logger, exception |
 
-현재 `McpRuntimeModule`은 `PlaceDomainModule`을 직접 import합니다. 따라서 `mcp-runtime`은 transport와는 분리되어 있지만 현재는 Zido 장소 domain에 결합된 application-oriented runtime입니다.
+`McpRuntimeModule`은 `PlaceDomainModule`을 직접 import합니다. 따라서 `mcp-runtime`은 transport와는 분리되어 있지만 Zido 장소 domain에 결합된 application-oriented runtime입니다.
 
-## 3. 목표 project structure
+## 3. 현재 project structure
 
 ```text
 apps/
@@ -77,13 +79,14 @@ apps/
 │       ├── main.ts
 │       └── app.module.ts
 └── zido-cli/
-    └── src/
+    ├── src/
         ├── main.ts
         ├── app.module.ts
         └── commands/
             ├── resolve.command.ts
             ├── nearby.command.ts
             └── geocode.command.ts
+    └── tsconfig.app.json
 
 libs/
 ├── configuration/
@@ -211,7 +214,7 @@ Transport를 environment variable로 선택하는 `config.transport`는 세 appl
 export class HttpServerModule {}
 ```
 
-현재 `McpRuntimeModule`이 `PlaceDomainModule`을 import하므로, 현재 coupling을 유지하는 migration 단계에서는 HTTP module이 `PlaceDomainModule`을 중복 import하지 않습니다.
+`McpRuntimeModule`이 `PlaceDomainModule`을 import하므로, HTTP module은 `PlaceDomainModule`을 중복 import하지 않습니다.
 
 ### `main.ts`
 
@@ -332,11 +335,15 @@ stateless mode에서는 다음을 명시합니다.
 
 stateful과 stateless 중 하나를 선택해야 하며, singleton transport를 유지한 채 두 mode를 혼합하지 않습니다.
 
-### Zido의 초기 권장 정책
+### Zido의 현재 HTTP 정책
 
-Zido의 초기 HTTP target은 **stateful mode와 process-local in-memory registry**를 사용합니다.
+Zido의 HTTP server는 **stateful mode와 process-local in-memory registry**를 사용합니다.
 
-현재 코드는 `sessionIdGenerator`를 사용하고 `DELETE /mcp` route를 노출하지만, DELETE가 실제 transport/session을 닫거나 registry를 정리하지 않으며 GET/POST도 singleton transport를 사용합니다. 따라서 현재 session lifecycle은 아직 구현되지 않은 상태입니다. target policy는 이 의도를 client별 transport와 명시적인 close/expiry 동작으로 완성하는 것입니다. registry가 보관하는 것은 MCP transport/session 상태이며 provider 또는 장소 domain 상태가 아닙니다.
+- session은 client별 `MCP-Session-Id`로 조회합니다.
+- `DELETE /mcp`는 session 종료와 registry 정리를 수행합니다.
+- idle session은 lazy expiry로 정리합니다.
+- registry는 process-local이므로 수평 확장 환경에서는 공유 session store 또는 sticky session이 필요합니다.
+- registry는 MCP transport/session 상태만 보관하며 provider 또는 장소 domain 상태는 보관하지 않습니다.
 
 다음 조건이 생기면 정책을 다시 결정합니다.
 
@@ -525,7 +532,7 @@ zido-cli
       "type": "application",
       "root": "apps/zido-cli",
       "entryFile": "main",
-      "sourceRoot": "apps/zido-cli/src",
+      "sourceRoot": "apps/zido-cli",
       "compilerOptions": {
         "tsConfigPath": "apps/zido-cli/tsconfig.app.json"
       }
@@ -534,22 +541,7 @@ zido-cli
 }
 ```
 
-package script도 transport environment variable 대신 application 이름을 사용합니다.
-
-```json
-{
-  "scripts": {
-    "start:http": "nest start zido-http-server",
-    "start:stdio": "nest start zido-stdio-server",
-    "start:cli": "node dist/apps/zido-cli/main.js",
-    "build:http": "nest build zido-http-server",
-    "build:stdio": "nest build zido-stdio-server",
-    "build:cli": "nest build zido-cli"
-  }
-}
-```
-
-production entrypoint는 다음처럼 구분합니다.
+애플리케이션별 실행 예시는 다음과 같습니다.
 
 ```bash
 node dist/apps/zido-http-server/main.js
@@ -557,74 +549,31 @@ node dist/apps/zido-stdio-server/main.js
 node dist/apps/zido-cli/main.js
 ```
 
-## 11. Migration 순서
+### 11. 구현 제약
 
-### 1단계: HTTP application 분리
+### HTTP session policy
 
-현재 `zido-server`에서 HTTP 관련 파일을 `zido-http-server`로 이동합니다.
+HTTP app은 stateful Streamable HTTP를 사용합니다.
 
-- `main.ts`
-- `app.module.ts`
-- HTTP controller
-- HTTP exception filter
-- HTTP middleware
+- client별 `MCP-Session-Id`로 transport를 조회합니다.
+- initialize 이후 요청은 같은 session을 재사용해야 합니다.
+- 여러 client를 동시에 지원하려면 session registry와 expiry 정책이 필요합니다.
+- singleton transport만으로는 multi-client HTTP server를 안정적으로 운영할 수 없습니다.
 
-HTTP application에 stdio 분기 코드를 남기지 않습니다.
+### CLI boundary
 
-### 2단계: stdio application 분리
+CLI는 MCP client가 아니라 direct domain caller입니다.
 
-stdio에 필요한 부분만 새 application으로 이동합니다.
-
-- `createApplicationContext`
-- `McpServerFactory`
-- `StdioServerTransport`
-
-HTTP controller와 middleware는 복사하지 않습니다.
-
-### 3단계: HTTP session policy 구현
-
-HTTP app에서 stateful 또는 stateless 중 하나를 결정합니다.
-
-- stateful: transport registry, session close, expiry, multi-replica 정책
-- stateless: request별 server와 transport, session 없음
-
-singleton transport를 migration 결과로 남기지 않습니다.
-
-### 4단계: configuration 분리
-
-각 app이 transport를 결정하도록 `config.transport` 의존성을 제거합니다.
-
-- 공통 config: provider와 server identity
-- HTTP config: port, Origin, auth, rate limit, session
-- CLI config: output과 command 기본값
-
-### 5단계: CLI 추가
-
-direct domain CLI를 선택하고 다음 범위로 구현합니다.
-
-- `PlaceDomainModule` import
-- command parser
-- domain input 변환
-- output serializer
-- exit code
-
-MCP protocol을 검증하는 CLI가 필요할 때만 별도 MCP client adapter를 추가합니다.
-
-### 6단계: 기존 application 제거
-
-세 application이 동일한 public behavior를 제공하고 기존 `zido-server` 의존성이 제거된 뒤 기존 application을 삭제합니다. 장기적인 compatibility shim을 남기지 않습니다.
+- `PlaceDomainModule`을 직접 호출합니다.
+- command parser로 input을 변환합니다.
+- output serializer로 결과를 출력합니다.
+- MCP transport lifecycle에 의존하지 않습니다.
 
 ## 12. Verification
 
 ### 공통
 
-```bash
-npm run typecheck
-npm run test
-npm run build:http
-npm run build:stdio
-npm run build:cli
-```
+공통 검증은 타입체크, 테스트, 그리고 각 application의 빌드를 수행합니다.
 
 ### Streamable HTTP
 

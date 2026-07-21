@@ -22,9 +22,10 @@ Zido는 Nest CLI workspace 기반의 MCP(Model Context Protocol) server입니다
 - 구조는 stale해지기 쉬우므로 변경이 생기거나 관측상 변경이 있는 경우 STRUCTURE 섹션을 갱신해야합니다.
 - configuration은 `config.ts`를 단일 source of truth로 사용하며 Nest `ConfigurationService`와 `ConfigurationModule`을 두지 않습니다.
 
-- `apps/zido-server/src/main.ts`: `config.transport`에 따라 `stdio` 또는 HTTP Nest lifecycle을 시작하는 root runtime entrypoint입니다. middleware, transport와 관련된 bootstrap ownership을 이 파일에 둡니다.
-- `apps/zido-server/src/app.module.ts`: `map-providers`, `place-domain`, `mcp-runtime` library를 Nest context에 등록하는 application module입니다. configuration은 `config.ts`에서 직접 참조합니다.
-- `apps/zido-server/src/transport/`: HTTP MCP endpoint와 해당 경계의 `ExceptionFilter`를 연결하는 transport adapter를 둡니다.
+- `apps/zido-http-server/src/main.ts`: HTTP Nest lifecycle, middleware, security boundary와 `/mcp` transport bootstrap을 소유합니다.
+- `apps/zido-http-server/src/app.module.ts`: HTTP application에 `mcp-runtime`과 session registry/controller를 등록합니다.
+- `apps/zido-stdio-server/src/main.ts`: `McpServerFactory`와 `StdioServerTransport`를 하나의 stdio lifecycle로 연결합니다.
+- `apps/zido-cli/src/main.ts`: `PlaceDomainModule`을 직접 호출하는 command parsing, output, exit code boundary를 소유합니다.
 - `libs/configuration/`: environment variable parsing, Zod validation, logger, configuration과 명시적 Exception을 관리합니다.
 - `libs/map-providers/`: provider contract, provider별 API adapter, provider routing과 fallback을 관리합니다.
 - `libs/place-domain/`: 장소 검색 orchestration, 장소 domain type과 거리 계산을 관리합니다.
@@ -99,16 +100,16 @@ cp .env.example .env
 
 ### DEVELOPMENT
 
-- `npm run start:stdio`: local MCP client용 `stdio` transport로 실행합니다.
-- `npm run start:http`: HTTP transport로 실행하며 `/mcp` endpoint를 사용합니다.
-- `MCP_TRANSPORT=stdio npm run start:dev`: `stdio` mode의 watch 개발 서버를 실행합니다.
-- `npm run start:dev`: HTTP를 기본 transport로 하는 watch 개발 서버를 실행합니다.
+- `npm run start:stdio`: local MCP client용 별도 stdio application을 실행합니다.
+- `npm run start:http`: HTTP application을 실행하며 `/mcp` endpoint를 사용합니다.
+- `npm run start:cli -- resolve "서울역"`: direct domain CLI command를 실행합니다.
+- `npm run start:dev`: HTTP application을 watch mode로 실행합니다.
 
 ### BUILD AND QUALITY
 
 - `npm run typecheck`: TypeScript type을 검사합니다.
-- `npm run build`: `dist/apps/zido-server/`에 production build를 생성합니다.
-- `npm run start:prod`: 생성된 production build를 실행합니다.
+- `npm run build:http`, `npm run build:stdio`, `npm run build:cli`: 각 application의 production build를 생성합니다.
+- `npm run start:prod`, `npm run start:prod:http`, `npm run start:prod:stdio`, `npm run start:prod:cli`: 생성된 application build를 실행합니다.
 - `npm run test`: 전체 Jest test를 실행합니다.
 - `npm run test:providers`: 설정된 API key가 있는 provider의 live test만 실행합니다.
 - `npm run lint`: `apps/`, `libs/`, `test/`의 TypeScript에 ESLint를 실행합니다.
@@ -120,8 +121,8 @@ cp .env.example .env
 
 1. `npm run typecheck`로 compile-time 오류를 확인합니다.
 2. 변경된 domain 또는 provider와 관련된 Jest test를 먼저 실행하고, contract 영향이 있으면 `npm run test`로 전체 test를 실행합니다.
-3. production entrypoint나 module wiring을 변경했다면 `npm run build`를 실행합니다.
-4. transport 동작을 변경했다면 API key와 `.env`를 준비한 뒤 `npm run start:stdio` 또는 `npm run start:http`로 실행합니다. HTTP mode는 `http://localhost:8000/mcp`에 연결하여 `tools/list`와 대표 `tools/call`을 확인합니다.
+3. production entrypoint나 module wiring을 변경했다면 `npm run build:http`, `npm run build:stdio`, `npm run build:cli`를 실행합니다.
+4. transport 동작을 변경했다면 API key와 `.env`를 준비한 뒤 `npm run start:stdio` 또는 `npm run start:http`로 실행합니다. HTTP mode는 `http://localhost:8000/mcp`에 연결하여 `tools/list`와 대표 `tools/call`을 확인합니다. stateful session은 initialize 뒤 발급된 `MCP-Session-Id`를 후속 요청과 `DELETE`에 사용합니다.
 5. 외부 provider 호출을 검증할 때만 `npm run test:providers`를 사용합니다. 관련 API key가 없는 provider test는 실행되지 않으므로, skip을 성공적인 live provider 검증으로 간주하지 않습니다.
 
 검증 명령어가 실패하면 원인을 수정한 뒤 동일한 범위의 검증을 다시 실행합니다. API key, network 또는 외부 service 장애로 live 검증을 완료할 수 없는 경우 해당 조건과 실행 결과를 작업 기록에 남깁니다.
