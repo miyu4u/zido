@@ -1,3 +1,3 @@
 export * from './mcp-runtime.module'
-export * from './create-mcp-server'
+export * from './mcp-server-factory.service'
 export * from './register-tools'
