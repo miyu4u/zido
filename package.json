@@ -1,10 +1,10 @@
 {
-  "name": "zido-server",
+  "name": "zido",
   "version": "0.0.1",
-  "description": "",
-  "author": "",
+  "description": "Zido is unifies Kakao, Naver, and Google Maps for place search and geocoding, with ordered provider fallback.",
+  "author": "miyu4u",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "scripts": {
     "build": "npm run build:http && npm run build:stdio && npm run build:cli",
     "build:cli": "nest build zido-cli",
