@@ -1,7 +1,7 @@
 
 import { Injectable } from '@nestjs/common'
 import axios, { AxiosInstance } from 'axios'
-import { ProviderException } from 'zido/configuration'
+import { ProviderException } from 'zido/common'
 import type { GeoResult, IHttpService, Place, Provider } from '../typed'
 import type {
     KakaoAddressSearchResponse,

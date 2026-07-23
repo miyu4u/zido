@@ -7,7 +7,7 @@ import { AxiosInstance } from 'axios'
 /**
  * 통합 장소 데이터 타입
  */
-export interface Place {
+export type Place = {
     name: string
     address: string
     roadAddress?: string
@@ -21,7 +21,7 @@ export interface Place {
 /**
  * 좌표 결과 타입
  */
-export interface GeoResult {
+export type GeoResult = {
     lat: number
     lng: number
     provider: string

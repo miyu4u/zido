@@ -1,7 +1,7 @@
 /**
  * Google Provider 설정
  */
-export interface GoogleProviderConfig {
+export type GoogleProviderConfig = {
     apiKey: string
 }
 
@@ -12,7 +12,7 @@ export interface GoogleProviderConfig {
 /**
  * Google Place 위치 정보
  */
-export interface GoogleLocation {
+export type GoogleLocation = {
     latitude: number
     longitude: number
 }
@@ -20,7 +20,7 @@ export interface GoogleLocation {
 /**
  * Google Place 표시 이름
  */
-export interface GoogleDisplayName {
+export type GoogleDisplayName = {
     text: string
     languageCode: string
 }
@@ -28,7 +28,7 @@ export interface GoogleDisplayName {
 /**
  * Google Place 객체
  */
-export interface GooglePlace {
+export type GooglePlace = {
     id: string
     displayName: GoogleDisplayName
     formattedAddress?: string
@@ -40,14 +40,14 @@ export interface GooglePlace {
 /**
  * Google Places Text Search 응답
  */
-export interface GoogleTextSearchResponse {
+export type GoogleTextSearchResponse = {
     places: GooglePlace[]
 }
 
 /**
  * Google Places Nearby Search 요청 본문
  */
-export interface GoogleNearbySearchRequest {
+export type GoogleNearbySearchRequest = {
     includedTypes?: string[]
     maxResultCount?: number
     locationRestriction?: {
@@ -63,7 +63,7 @@ export interface GoogleNearbySearchRequest {
 /**
  * Google Places Nearby Search 응답
  */
-export interface GoogleNearbySearchResponse {
+export type GoogleNearbySearchResponse = {
     places: GooglePlace[]
 }
 
@@ -74,7 +74,7 @@ export interface GoogleNearbySearchResponse {
 /**
  * Google Geocoding 주소 컴포넌트
  */
-export interface GoogleAddressComponent {
+export type GoogleAddressComponent = {
     long_name: string
     short_name: string
     types: string[]
@@ -83,7 +83,7 @@ export interface GoogleAddressComponent {
 /**
  * Google Geocoding 위치
  */
-export interface GoogleGeocodeLocation {
+export type GoogleGeocodeLocation = {
     lat: number
     lng: number
 }
@@ -91,7 +91,7 @@ export interface GoogleGeocodeLocation {
 /**
  * Google Geocoding 지오메트리
  */
-export interface GoogleGeocodeGeometry {
+export type GoogleGeocodeGeometry = {
     location: GoogleGeocodeLocation
     location_type: string
     viewport?: {
@@ -107,7 +107,7 @@ export interface GoogleGeocodeGeometry {
 /**
  * Google Geocoding 결과
  */
-export interface GoogleGeocodeResult {
+export type GoogleGeocodeResult = {
     address_components: GoogleAddressComponent[]
     formatted_address: string
     geometry: GoogleGeocodeGeometry
@@ -118,7 +118,7 @@ export interface GoogleGeocodeResult {
 /**
  * Google Geocoding 응답
  */
-export interface GoogleGeocodeResponse {
+export type GoogleGeocodeResponse = {
     results: GoogleGeocodeResult[]
     status: 'OK' | 'ZERO_RESULTS' | 'OVER_QUERY_LIMIT' | 'REQUEST_DENIED' | 'INVALID_REQUEST'
     error_message?: string

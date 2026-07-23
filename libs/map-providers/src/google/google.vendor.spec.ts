@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { ProviderException } from 'zido/configuration'
+import { ProviderException } from 'zido/common'
 import type {
     GoogleGeocodeResponse,
     GoogleNearbySearchResponse,

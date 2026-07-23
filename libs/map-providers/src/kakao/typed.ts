@@ -1,14 +1,14 @@
 /**
  * Kakao Provider 설정
  */
-export interface KakaoProviderConfig {
+export type KakaoProviderConfig = {
     restKey: string
 }
 
 /**
  * Kakao 검색 결과 메타데이터
  */
-interface KakaoSearchMeta {
+type KakaoSearchMeta = {
     total_count: number
     pageable_count: number
     is_end: boolean
@@ -17,7 +17,7 @@ interface KakaoSearchMeta {
 /**
  * Kakao 검색 응답 기본 타입
  */
-interface KakaoSearchResponse<TDocument> {
+type KakaoSearchResponse<TDocument> = {
     documents: TDocument[]
     meta: KakaoSearchMeta
 }
@@ -25,7 +25,7 @@ interface KakaoSearchResponse<TDocument> {
 /**
  * Kakao 장소 문서 기본 타입
  */
-export interface KakaoPlaceDocument {
+export type KakaoPlaceDocument = {
     place_name: string
     address_name: string
     road_address_name?: string
@@ -37,19 +37,19 @@ export interface KakaoPlaceDocument {
 /**
  * Kakao 키워드 검색 문서
  */
-interface KakaoKeywordDocument extends KakaoPlaceDocument { }
+type KakaoKeywordDocument = KakaoPlaceDocument
 
 /**
  * Kakao 카테고리 검색 문서
  */
-interface KakaoCategoryDocument extends KakaoPlaceDocument {
+type KakaoCategoryDocument = KakaoPlaceDocument & {
     distance?: string
 }
 
 /**
  * Kakao 주소 문서
  */
-interface KakaoAddressDocument {
+type KakaoAddressDocument = {
     address_name: string
     y: string // 위도
     x: string // 경도

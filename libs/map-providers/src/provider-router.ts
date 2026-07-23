@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { config, McpException, logger } from 'zido/configuration'
+import { config, McpException, logger } from 'zido/common'
 import { GoogleVendor } from './google/google.vendor'
 import { KakaoVendor } from './kakao/kakao.vendor'
 import { NaverVendor } from './naver/naver.vendor'

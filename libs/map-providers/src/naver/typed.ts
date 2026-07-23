@@ -1,7 +1,7 @@
 /**
  * 네이버 API 제공자 설정
  */
-export interface NaverProviderConfig {
+export type NaverProviderConfig = {
     /** 클라이언트 ID */
     clientId: string
     /** 클라이언트 시크릿 */
@@ -11,7 +11,7 @@ export interface NaverProviderConfig {
 /**
  * 좌표 정보
  */
-export interface NaverCoordinates {
+export type NaverCoordinates = {
     /** X 좌표 */
     x: string
     /** Y 좌표 */
@@ -21,7 +21,7 @@ export interface NaverCoordinates {
 /**
  * 주소 정보
  */
-export interface NaverAddressInfo {
+export type NaverAddressInfo = {
     /** 도로명 주소 */
     roadAddress?: string
     /** 지번 주소 */
@@ -31,7 +31,7 @@ export interface NaverAddressInfo {
 /**
  * 네이버 로컬 검색 결과 아이템
  */
-export interface NaverLocalSearchItem {
+export type NaverLocalSearchItem = {
     /** 장소 제목 */
     title: string
     /** 장소 링크 */
@@ -55,7 +55,7 @@ export interface NaverLocalSearchItem {
 /**
  * 네이버 로컬 검색 응답
  */
-export interface NaverLocalSearchResponse {
+export type NaverLocalSearchResponse = {
     /** 최종 빌드 날짜 */
     lastBuildDate: string
     /** 전체 검색 결과 수 */
@@ -71,7 +71,7 @@ export interface NaverLocalSearchResponse {
 /**
  * 네이버 지오코딩 주소 정보
  */
-export interface NaverGeocodeAddress extends NaverAddressInfo, NaverCoordinates {
+export type NaverGeocodeAddress = NaverAddressInfo & NaverCoordinates & {
     /** 영문 주소 */
     englishAddress?: string
 }
@@ -79,7 +79,7 @@ export interface NaverGeocodeAddress extends NaverAddressInfo, NaverCoordinates 
 /**
  * 네이버 지오코딩 응답
  */
-export interface NaverGeocodeResponse {
+export type NaverGeocodeResponse = {
     /** 응답 상태 */
     status?: string
     /** 메타데이터 */
