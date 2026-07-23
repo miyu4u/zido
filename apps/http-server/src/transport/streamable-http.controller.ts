@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import type { Request, Response } from 'express'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { McpServerFactory } from 'zido/mcp-runtime'
-import { McpException } from 'zido/configuration'
+import { McpException } from 'zido/common'
 import { StreamableHttpSessionRegistry } from './streamable-http-session.registry'
 
 /**

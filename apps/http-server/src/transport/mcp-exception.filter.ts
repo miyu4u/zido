@@ -1,6 +1,6 @@
 import { ArgumentsHost, Catch, ExceptionFilter } from '@nestjs/common'
 import type { Response } from 'express'
-import { McpException, ProviderException } from 'zido/configuration'
+import { McpException, ProviderException } from 'zido/common'
 
 /**
  * MCP domain exception을 HTTP client가 읽을 수 있는 오류 body로 변환한다.

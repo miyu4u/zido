@@ -11,9 +11,11 @@
     "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true,
     "target": "ES2023",
+    "types": ["node", "jest"],
     "sourceMap": true,
+    "rootDir": ".",
     "outDir": "./dist",
-    "baseUrl": "./",
+
     "incremental": true,
     "skipLibCheck": true,
     "strictNullChecks": true,
@@ -22,29 +24,29 @@
     "strictBindCallApply": true,
     "noFallthroughCasesInSwitch": true,
     "paths": {
-      "zido/configuration": [
-        "libs/configuration/src"
+      "zido/common": [
+        "./libs/common/src"
       ],
-      "zido/configuration/*": [
-        "libs/configuration/src/*"
+      "zido/common/*": [
+        "./libs/common/src/*"
       ],
       "zido/map-providers": [
-        "libs/map-providers/src"
+        "./libs/map-providers/src"
       ],
       "zido/map-providers/*": [
-        "libs/map-providers/src/*"
+        "./libs/map-providers/src/*"
       ],
       "zido/mcp-runtime": [
-        "libs/mcp-runtime/src"
+        "./libs/mcp-runtime/src"
       ],
       "zido/mcp-runtime/*": [
-        "libs/mcp-runtime/src/*"
+        "./libs/mcp-runtime/src/*"
       ],
       "zido/place-domain": [
-        "libs/place-domain/src"
+        "./libs/place-domain/src"
       ],
       "zido/place-domain/*": [
-        "libs/place-domain/src/*"
+        "./libs/place-domain/src/*"
       ]
     }
   }

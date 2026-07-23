@@ -1,7 +1,5 @@
 # Zido - MCP 서버 for 지도 검색
 
-![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg)
-
 Zido는 Nest CLI workspace로 구현된 MCP(Model Context Protocol) 서버입니다. 카카오/네이버/구글 지도 API를 하나의 인터페이스로 묶어 장소 검색과 지오코딩을 일관된 방식으로 제공합니다.
 
 ## 핵심 기능
@@ -30,9 +28,9 @@ Zido는 Nest CLI workspace로 구현된 MCP(Model Context Protocol) 서버입니
 
 Zido는 현재 세 개의 application으로 구현되어 있습니다.
 
-- `apps/zido-http-server` — Streamable HTTP MCP server
-- `apps/zido-stdio-server` — stdio MCP server
-- `apps/zido-cli` — domain을 직접 호출하는 CLI
+- `apps/http-server` — Streamable HTTP MCP server
+- `apps/stdio-server` — stdio MCP server
+- `apps/cli` — domain을 직접 호출하는 CLI
 
 ### Provider
 
@@ -49,7 +47,7 @@ HTTP, stdio, CLI는 서로 다른 application으로 분리되어 있습니다. �
 ```bash
 npm run start:http   # HTTP server
 npm run start:stdio  # stdio server
-node dist/apps/zido-cli/main.js  # CLI
+node dist/apps/cli/main.js  # CLI
 ```
 
 Streamable HTTP는 세션 기반의 stateful mode를 사용합니다. session은 process-local in-memory registry로 관리되므로, 수평 확장 환경에서는 shared store나 sticky session이 필요합니다. 현재 구현과 제한 사항은 [Multi-App Architecture](docs/multi-app-architecture.md)를 참고합니다.
@@ -57,17 +55,17 @@ Streamable HTTP는 세션 기반의 stateful mode를 사용합니다. session은
 ## 프로젝트 구조
 
 ```
-apps/zido-http-server/
+apps/http-server/
   src/          # Streamable HTTP MCP server
-apps/zido-stdio-server/
+apps/stdio-server/
   src/          # stdio MCP server
-apps/zido-cli/
+apps/cli/
   src/main.ts   # domain 직접 호출 CLI entrypoint
   src/commands/
   src/app.module.ts
   tsconfig.app.json
 libs/
-  configuration/  # 환경변수, logger, error, validation
+  common/         # 환경변수, logger, error, validation
   map-providers/  # Kakao/Naver/Google provider와 fallback
   place-domain/   # 장소 orchestration과 거리 계산
   mcp-runtime/    # MCP server factory와 tool registrar
@@ -175,7 +173,7 @@ stateful Streamable HTTP에서는 클라이언트별 session이 유지되므로,
 장소 검색과 지오코딩을 직접 실행할 때 사용합니다:
 
 ```bash
-node dist/apps/zido-cli/main.js
+node dist/apps/cli/main.js
 ```
 
 ## 빌드
@@ -187,9 +185,9 @@ npm run build
 빌드된 파일은 각 application별 디렉토리에 생성됩니다:
 
 ```bash
-node dist/apps/zido-http-server/main.js
-node dist/apps/zido-stdio-server/main.js
-node dist/apps/zido-cli/main.js
+node dist/apps/http-server/main.js
+node dist/apps/stdio-server/main.js
+node dist/apps/cli/main.js
 ```
 
 ## 데모 시나리오
@@ -207,7 +205,7 @@ MCP Inspector 또는 Claude Desktop에서 `tools/list`로 도구 목록을 확�
     "zido": {
       "command": "node",
       "args": [
-        "$WORKSPACE/dist/apps/zido-stdio-server/main.js"
+        "$WORKSPACE/dist/apps/stdio-server/main.js"
       ],
       "env": {
         "KAKAO_REST_KEY": ""

@@ -6,20 +6,20 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "build": "nest build zido-http-server",
+    "build": "npm run build:http && npm run build:stdio && npm run build:cli",
     "build:cli": "nest build zido-cli",
     "build:http": "nest build zido-http-server",
     "build:stdio": "nest build zido-stdio-server",
     "format": "prettier --write \"apps/**/*.ts\" \"libs/**/*.ts\"",
     "start": "nest start zido-http-server",
-    "start:cli": "node dist/apps/zido-cli/main.js",
+    "start:cli": "node dist/apps/cli/main.js",
     "start:dev": "nest start zido-http-server --watch",
     "start:stdio": "nest start zido-stdio-server",
     "start:http": "nest start zido-http-server",
-    "start:prod": "node dist/apps/zido-http-server/main.js",
-    "start:prod:cli": "node dist/apps/zido-cli/main.js",
-    "start:prod:http": "node dist/apps/zido-http-server/main.js",
-    "start:prod:stdio": "node dist/apps/zido-stdio-server/main.js",
+    "start:prod": "node dist/apps/http-server/main.js",
+    "start:prod:cli": "node dist/apps/cli/main.js",
+    "start:prod:http": "node dist/apps/http-server/main.js",
+    "start:prod:stdio": "node dist/apps/stdio-server/main.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
@@ -62,12 +62,12 @@
     "prettier": "^3.4.2",
     "source-map-support": "^0.5.21",
     "supertest": "^7.0.0",
-    "ts-jest": "^29.2.5",
-    "ts-loader": "^9.5.2",
+    "ts-jest": "^29.4.12",
+    "ts-loader": "^9.6.2",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
-    "typescript": "^5.7.3",
-    "typescript-eslint": "^8.20.0"
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.65.0"
   },
   "jest": {
     "moduleFileExtensions": [
@@ -86,14 +86,14 @@
     "coverageDirectory": "./coverage",
     "testEnvironment": "node",
     "roots": [
-      "<rootDir>/apps/zido-http-server/src/",
-      "<rootDir>/apps/zido-stdio-server/src/",
-      "<rootDir>/apps/zido-cli/",
+      "<rootDir>/apps/http-server/src/",
+      "<rootDir>/apps/stdio-server/src/",
+      "<rootDir>/apps/cli/",
       "<rootDir>/libs/",
       "<rootDir>/test/"
     ],
     "moduleNameMapper": {
-      "^zido/configuration(|/.*)$": "<rootDir>/libs/configuration/src/$1",
+      "^zido/common(|/.*)$": "<rootDir>/libs/common/src/$1",
       "^zido/map-providers(|/.*)$": "<rootDir>/libs/map-providers/src/$1",
       "^zido/mcp-runtime(|/.*)$": "<rootDir>/libs/mcp-runtime/src/$1",
       "^zido/place-domain(|/.*)$": "<rootDir>/libs/place-domain/src/$1"

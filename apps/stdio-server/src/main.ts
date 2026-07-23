@@ -4,9 +4,6 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { McpServerFactory } from 'zido/mcp-runtime'
 import { AppModule } from './app.module'
 
-/**
- * MCP server를 stdio transport 하나에 연결하고 process lifecycle을 유지한다.
- */
 async function bootstrap(): Promise<void> {
     const context = await NestFactory.createApplicationContext(AppModule, { logger: false })
     const factory = context.get(McpServerFactory)

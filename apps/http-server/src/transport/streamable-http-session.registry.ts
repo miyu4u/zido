@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
-import { logger } from 'zido/configuration'
+import { logger } from 'zido/common'
 
 /**
  * 한 MCP client에 귀속된 server와 transport의 수명 정보를 보관한다.

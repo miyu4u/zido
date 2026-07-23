@@ -2,46 +2,47 @@
   "$schema": "https://json.schemastore.org/nest-cli",
   "collection": "@nestjs/schematics",
   "prefix": "zido",
-  "sourceRoot": "apps/zido-http-server/src",
+  "sourceRoot": "apps/http-server/src",
   "compilerOptions": {
     "deleteOutDir": true,
-    "webpack": true
+    "webpack": true,
+    "webpackConfigPath": "webpack.config.js"
   },
   "projects": {
     "zido-http-server": {
       "type": "application",
-      "root": "apps/zido-http-server",
+      "root": "apps/http-server",
       "entryFile": "main",
-      "sourceRoot": "apps/zido-http-server/src",
+      "sourceRoot": "apps/http-server/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/zido-http-server/tsconfig.app.json"
+        "tsConfigPath": "apps/http-server/tsconfig.app.json"
       }
     },
     "zido-stdio-server": {
       "type": "application",
-      "root": "apps/zido-stdio-server",
+      "root": "apps/stdio-server",
       "entryFile": "main",
-      "sourceRoot": "apps/zido-stdio-server/src",
+      "sourceRoot": "apps/stdio-server/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/zido-stdio-server/tsconfig.app.json"
+        "tsConfigPath": "apps/stdio-server/tsconfig.app.json"
       }
     },
     "zido-cli": {
       "type": "application",
-      "root": "apps/zido-cli",
+      "root": "apps/cli",
       "entryFile": "main",
-      "sourceRoot": "apps/zido-cli/src",
+      "sourceRoot": "apps/cli/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/zido-cli/tsconfig.app.json"
+        "tsConfigPath": "apps/cli/tsconfig.app.json"
       }
     },
-    "configuration": {
+    "common": {
       "type": "library",
-      "root": "libs/configuration",
+      "root": "libs/common",
       "entryFile": "index",
-      "sourceRoot": "libs/configuration/src",
+      "sourceRoot": "libs/common/src",
       "compilerOptions": {
-        "tsConfigPath": "libs/configuration/tsconfig.lib.json"
+        "tsConfigPath": "libs/common/tsconfig.lib.json"
       }
     },
     "map-providers": {

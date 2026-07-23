@@ -5,7 +5,7 @@ import rateLimit from 'express-rate-limit'
 import helmet from 'helmet'
 import { NestFactory } from '@nestjs/core'
 import type { NextFunction, Request, Response } from 'express'
-import { logger, config } from 'zido/configuration'
+import { logger, config } from 'zido/common'
 import { AppModule } from './app.module'
 import { McpExceptionFilter } from './transport/mcp-exception.filter'
 

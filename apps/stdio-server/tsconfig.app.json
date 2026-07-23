@@ -1,7 +1,7 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "outDir": "../../dist/apps/zido-cli"
+    "outDir": "../../dist/apps/stdio-server"
   },
   "include": ["src/**/*.ts"]
 }

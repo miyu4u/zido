@@ -2,7 +2,7 @@ import 'reflect-metadata'
 import { z } from 'zod'
 import { NestFactory } from '@nestjs/core'
 import type { INestApplicationContext } from '@nestjs/common'
-import { config, logger } from 'zido/configuration'
+import { config, logger } from 'zido/common'
 import { PlaceService } from 'zido/place-domain'
 import { CliAppModule } from './app.module'
 import {

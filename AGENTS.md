@@ -17,21 +17,25 @@ Zido는 Nest CLI workspace 기반의 MCP(Model Context Protocol) server입니다
 
 ## STRUCTURE
 
+- `apps`: application entry
+  - `http-server` : zido http server /mcp transporter
+  - `stdio` : zido stdio server
+  - `cli` : zido cli application
+- `libs` : libraries
+  - `common` : common codes like validator, config ...
+  - `map-providers` : map data API providers
+    - `kakao` : Kakao map
+    - `naver` : naver map
+    - `google` : google map
+  - `mcp-runtime` : mcp shim module
+  - `place-domain` : place related codes
+
+> 대표 Flow : apps > (mcp-runtime) > place-domain > map-providers
+
 ### STRUCTURE GUIDE
 
 - 구조는 stale해지기 쉬우므로 변경이 생기거나 관측상 변경이 있는 경우 STRUCTURE 섹션을 갱신해야합니다.
-- configuration은 `config.ts`를 단일 source of truth로 사용하며 Nest `ConfigurationService`와 `ConfigurationModule`을 두지 않습니다.
-
-- `apps/zido-http-server/src/main.ts`: HTTP Nest lifecycle, middleware, security boundary와 `/mcp` transport bootstrap을 소유합니다.
-- `apps/zido-http-server/src/app.module.ts`: HTTP application에 `mcp-runtime`과 session registry/controller를 등록합니다.
-- `apps/zido-stdio-server/src/main.ts`: `McpServerFactory`와 `StdioServerTransport`를 하나의 stdio lifecycle로 연결합니다.
-- `apps/zido-cli/src/main.ts`: `PlaceDomainModule`을 직접 호출하는 command parsing, output, exit code boundary를 소유합니다.
-- `libs/configuration/`: environment variable parsing, Zod validation, logger, configuration과 명시적 Exception을 관리합니다.
-- `libs/map-providers/`: provider contract, provider별 API adapter, provider routing과 fallback을 관리합니다.
-- `libs/place-domain/`: 장소 검색 orchestration, 장소 domain type과 거리 계산을 관리합니다.
-- `libs/mcp-runtime/`: MCP server factory와 tool registration을 관리합니다.
-- `test/`: provider API와 연결되는 opt-in live test를 둡니다. `.env`에 해당 API key가 없으면 live test는 skip됩니다.
-- `.backup/`: migration 이전 standalone source 보관 영역입니다. active runtime import와 build 대상은 현재 `apps/`와 `libs/`입니다.
+- `common` library는 `config.ts`를 configuration의 단일 source of truth로 사용하며 Nest `ConfigurationService`와 `ConfigurationModule`을 두지 않습니다.
 
 ## RULES
 
@@ -128,22 +132,30 @@ cp .env.example .env
 검증 명령어가 실패하면 원인을 수정한 뒤 동일한 범위의 검증을 다시 실행합니다. API key, network 또는 외부 service 장애로 live 검증을 완료할 수 없는 경우 해당 조건과 실행 결과를 작업 기록에 남깁니다.
 
 ## CAUTIONS
+
 <!--
 반복해서 충돌, 마찰, fitfalls이 생기는 부분에 대한 quick pass를 이곳에 적습니다
 -->
-
 
 ## HOUSE KEEPING
 
 - Source/runtime ownership이 변경되면 agent는 같은 task에서 이 file을 갱신해야 한다. (MUST)
 - Human-facing setup, example 또는 operator mental model이 변경되면 agent는 같은 task에서 `README.md`를 갱신해야 한다. (SHOULD)
+
 ---
 
 ## APPENDED RULES
+
 <!-- 작업하면서 생기는 추가 규칙들을 이곳에 추가합니다 -->
-- configuration 설정값은 `config.ts`에서 직접 참조해야 하며 service/module shim을 추가하지 않습니다.
+
+- payload 형식은 TypeScript `type`으로 정의하고, method 계약은 TypeScript `interface`로 정의합니다.
+- `common` library의 configuration 설정값은 `config.ts`에서 직접 참조해야 하며 service/module shim을 추가하지 않습니다.
+- 공통 configuration, logger, exception, input validation은 `libs/common`과 `zido/common`이 소유하며 legacy module alias를 남기지 않습니다.
+- input validation 공개 함수의 JSDoc은 검증 대상과 허용 범위, 각 `@param`, 성공 및 실패 `@returns`를 한글로 구체적으로 서술합니다.
+- TypeScript toolchain은 6.0 이상을 유지하고 `ts-jest`, `ts-loader`, `typescript-eslint`의 peer 호환 범위를 함께 갱신합니다.
 - 도메인 및 provider 실패는 명시적 `Exception`으로 전달하고 HTTP 경계에서는 global `ExceptionFilter`로 응답을 작성합니다.
-- `place-domain` service의 공개 메소드는 interface contract로 선언하고, arguments와 result payload는 `type` 또는 `class`로 정의하며 dependency는 constructor로 주입합니다.
-- `haversine` 거리 계산은 동일 좌표, 기준 거리, 대칭성의 deterministic unit test로 보호합니다.
+- service의 공개 메소드는 interface contract로 선언하고, arguments와 result payload는 `type` 또는 `class`로 정의하며 dependency는 constructor로 주입합니다.
+- `mcp-runtime`의 선언에는 의미 있는 multiline JSDoc 한글 주석을 작성하고, dependency는 property `@Inject` decorator가 아닌 constructor로 주입합니다.
+- application source directory는 `apps/http-server`, `apps/stdio-server`, `apps/cli`로 통일합니다.
 
 <INSTRUCTIONS project="security">
