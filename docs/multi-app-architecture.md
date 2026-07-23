@@ -4,9 +4,9 @@
 
 이 문서는 현재 구현된 multi-app workspace의 구조와 제한 사항을 정리합니다.
 
-- `zido-http-server`: Streamable HTTP MCP server
-- `zido-stdio-server`: stdio MCP server
-- `zido-cli`: 직접 domain을 호출하는 CLI
+- `http-server`: Streamable HTTP MCP server
+- `stdio-server`: stdio MCP server
+- `cli`: 직접 domain을 호출하는 CLI
 
 세 application은 다음과 같습니다.
 
@@ -33,9 +33,9 @@
 현재 workspace는 세 개의 application으로 구성됩니다.
 
 ```text
-apps/zido-http-server/src/main.ts
-apps/zido-stdio-server/src/main.ts
-apps/zido-cli/src/main.ts
+apps/http-server/src/main.ts
+apps/stdio-server/src/main.ts
+apps/cli/src/main.ts
 ```
 
 MCP server와 tool은 library에 있습니다.
@@ -52,13 +52,13 @@ libs/mcp-runtime
 
 | 영역 | 현재 책임 |
 | --- | --- |
-| `apps/zido-http-server` | Nest bootstrap, HTTP controller, HTTP middleware |
-| `apps/zido-stdio-server` | Nest bootstrap, stdio transport |
-| `apps/zido-cli` | direct domain CLI |
+| `apps/http-server` | Nest bootstrap, HTTP controller, HTTP middleware |
+| `apps/stdio-server` | Nest bootstrap, stdio transport |
+| `apps/cli` | direct domain CLI |
 | `libs/mcp-runtime` | `McpServer` 생성, capability 선언, tool 등록 |
 | `libs/place-domain` | 장소 검색, geocoding, 거리 계산, domain orchestration |
 | `libs/map-providers` | provider adapter와 fallback routing |
-| `libs/configuration` | 환경변수, validation, logger, exception |
+| `libs/common` | 환경변수, validation, logger, exception |
 
 `McpRuntimeModule`은 `PlaceDomainModule`을 직접 import합니다. 따라서 `mcp-runtime`은 transport와는 분리되어 있지만 Zido 장소 domain에 결합된 application-oriented runtime입니다.
 
@@ -66,7 +66,7 @@ libs/mcp-runtime
 
 ```text
 apps/
-├── zido-http-server/
+├── http-server/
 │   └── src/
 │       ├── main.ts
 │       ├── app.module.ts
@@ -74,11 +74,11 @@ apps/
 │           ├── streamable-http.controller.ts
 │           ├── streamable-http-session.registry.ts
 │           └── mcp-exception.filter.ts
-├── zido-stdio-server/
+├── stdio-server/
 │   └── src/
 │       ├── main.ts
 │       └── app.module.ts
-└── zido-cli/
+└── cli/
     ├── src/
         ├── main.ts
         ├── app.module.ts
@@ -89,7 +89,7 @@ apps/
     └── tsconfig.app.json
 
 libs/
-├── configuration/
+├── common/
 ├── map-providers/
 ├── place-domain/
 └── mcp-runtime/
@@ -98,11 +98,11 @@ libs/
 의존성 방향은 다음과 같습니다.
 
 ```text
-zido-http-server ───┐
+http-server ───┐
                      ├── mcp-runtime ── place-domain ── map-providers
-zido-stdio-server ──┘
+stdio-server ──┘
 
-zido-cli ─────────────── place-domain ── map-providers
+cli ─────────────── place-domain ── map-providers
 ```
 
 다음 의존성은 금지합니다.
@@ -158,7 +158,7 @@ await server.connect(transport)
 
 MCP tool과 CLI command는 이 service를 각자의 boundary에 맞게 호출합니다.
 
-### `configuration`
+### `common`
 
 공통 configuration과 boundary별 configuration을 구분합니다.
 
@@ -186,11 +186,11 @@ CLI 전용 configuration:
 
 Transport를 environment variable로 선택하는 `config.transport`는 세 application으로 분리한 뒤 제거하는 것을 권장합니다. 실행할 application 자체가 transport를 결정해야 합니다.
 
-## 5. `zido-http-server`
+## 5. `http-server`
 
 ### 책임
 
-`zido-http-server`는 Streamable HTTP와 HTTP 운영 설정을 소유합니다.
+`http-server`는 Streamable HTTP와 HTTP 운영 설정을 소유합니다.
 
 - Nest HTTP application 생성
 - `StreamableHTTPServerTransport`
@@ -221,7 +221,7 @@ export class HttpServerModule {}
 HTTP application의 entrypoint는 하나의 lifecycle만 시작합니다.
 
 ```text
-zido-http-server/src/main.ts
+http-server/src/main.ts
   ├── NestFactory.create(HttpServerModule)
   ├── HTTP middleware
   ├── global exception filter
@@ -398,14 +398,14 @@ cors({
 
 Origin validation은 CORS 설정만으로 대체하지 않습니다. Streamable HTTP controller 또는 security middleware에서 허용 Origin을 명시적으로 검증해야 합니다.
 
-## 8. `zido-stdio-server`
+## 8. `stdio-server`
 
 ### 책임
 
 stdio application은 local MCP client가 실행하는 하나의 MCP server process입니다.
 
 ```text
-zido-stdio-server/src/main.ts
+stdio-server/src/main.ts
   ├── NestFactory.createApplicationContext()
   ├── context.get(McpServerFactory)
   ├── factory.create()
@@ -432,14 +432,14 @@ export class StdioServerModule {}
 
 stdio application은 `McpServerFactory`와 `StdioServerTransport`를 한 번 연결하고 process lifecycle을 유지합니다.
 
-## 9. `zido-cli`
+## 9. `cli`
 
 ### 선택: direct domain CLI
 
 이번 설계에서는 MCP server를 거치지 않고 `PlaceService`를 직접 호출하는 direct domain CLI를 선택합니다.
 
 ```text
-zido-cli
+cli
   └── PlaceDomainModule
         └── PlaceService
               └── ProviderRouterService
@@ -489,7 +489,7 @@ CLI가 소유하지 않는 항목:
 현재 설계에서는 MCP client CLI를 선택하지 않습니다. CLI가 MCP server를 검증하거나 외부 MCP server를 호출해야 하는 요구가 생기면 direct domain CLI와 다른 application contract로 별도 정의합니다.
 
 ```text
-zido-cli
+cli
   └── MCP client adapter
         ├── StdioClientTransport
         └── StreamableHTTPClientTransport
@@ -510,31 +510,31 @@ zido-cli
 ```json
 {
   "projects": {
-    "zido-http-server": {
+    "http-server": {
       "type": "application",
-      "root": "apps/zido-http-server",
+      "root": "apps/http-server",
       "entryFile": "main",
-      "sourceRoot": "apps/zido-http-server/src",
+      "sourceRoot": "apps/http-server/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/zido-http-server/tsconfig.app.json"
+        "tsConfigPath": "apps/http-server/tsconfig.app.json"
       }
     },
-    "zido-stdio-server": {
+    "stdio-server": {
       "type": "application",
-      "root": "apps/zido-stdio-server",
+      "root": "apps/stdio-server",
       "entryFile": "main",
-      "sourceRoot": "apps/zido-stdio-server/src",
+      "sourceRoot": "apps/stdio-server/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/zido-stdio-server/tsconfig.app.json"
+        "tsConfigPath": "apps/stdio-server/tsconfig.app.json"
       }
     },
-    "zido-cli": {
+    "cli": {
       "type": "application",
-      "root": "apps/zido-cli",
+      "root": "apps/cli",
       "entryFile": "main",
-      "sourceRoot": "apps/zido-cli",
+      "sourceRoot": "apps/cli",
       "compilerOptions": {
-        "tsConfigPath": "apps/zido-cli/tsconfig.app.json"
+        "tsConfigPath": "apps/cli/tsconfig.app.json"
       }
     }
   }
@@ -544,9 +544,9 @@ zido-cli
 애플리케이션별 실행 예시는 다음과 같습니다.
 
 ```bash
-node dist/apps/zido-http-server/main.js
-node dist/apps/zido-stdio-server/main.js
-node dist/apps/zido-cli/main.js
+node dist/apps/http-server/main.js
+node dist/apps/stdio-server/main.js
+node dist/apps/cli/main.js
 ```
 
 ### 11. 구현 제약
@@ -615,16 +615,16 @@ HTTP와 stdio application이 각각 tool을 등록하지 않았는지 확인합�
 | MCP tool schema와 handler | `mcp-runtime` |
 | 장소 검색 domain | `place-domain` |
 | provider fallback | `map-providers` |
-| Streamable HTTP | `zido-http-server` |
-| HTTP session registry | `zido-http-server` |
-| HTTP CORS와 security | `zido-http-server` |
-| stdio 연결 | `zido-stdio-server` |
-| direct CLI command | `zido-cli` |
-| 공통 configuration | `configuration` |
+| Streamable HTTP | `http-server` |
+| HTTP session registry | `http-server` |
+| HTTP CORS와 security | `http-server` |
+| stdio 연결 | `stdio-server` |
+| direct CLI command | `cli` |
+| 공통 configuration | `common` |
 
 핵심 원칙은 다음과 같습니다.
 
-> `zido-http-server`와 `zido-stdio-server`는 동일한 `mcp-runtime`을 서로 다른 transport로 연결하고, `zido-cli`는 MCP response envelope가 아닌 domain 결과를 CLI contract로 표현합니다.
+> `http-server`와 `stdio-server`는 동일한 `mcp-runtime`을 서로 다른 transport로 연결하고, `cli`는 MCP response envelope가 아닌 domain 결과를 CLI contract로 표현합니다.
 
 ## 참고 자료
 
