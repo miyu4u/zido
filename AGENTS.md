@@ -149,6 +149,7 @@ cp .env.example .env
 <!-- 작업하면서 생기는 추가 규칙들을 이곳에 추가합니다 -->
 
 - `apps/` 하위 application의 e2e smoke test는 각 runtime entrypoint의 observable 동작을 검증하며, 외부 API provider 호출은 concrete provider method를 `jest.spyOn`하여 대체합니다.
+- `apps/` 하위 application의 e2e test는 각 application의 `test/` 디렉터리에 위치해야 합니다.
 - payload 형식은 TypeScript `type`으로 정의하고, method 계약은 TypeScript `interface`로 정의합니다.
 - `common` library의 configuration 설정값은 `config.ts`에서 직접 참조해야 하며 service/module shim을 추가하지 않습니다.
 - 공통 configuration, logger, exception, input validation은 `libs/common`과 `zido/common`이 소유하며 legacy module alias를 남기지 않습니다.

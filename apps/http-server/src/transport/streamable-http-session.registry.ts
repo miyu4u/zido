@@ -1,7 +1,12 @@
 import { Injectable } from '@nestjs/common'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
-import { logger } from 'zido/common'
+import { logger, type ID } from 'zido/common'
+
+/**
+ * 다른 string 식별자가 session registry key로 섞이지 않도록 구분한다.
+ */
+export type SessionId = ID<'SessionId'>
 
 /**
  * 한 MCP client에 귀속된 server와 transport의 수명 정보를 보관한다.
@@ -24,17 +29,17 @@ export interface StreamableHttpSessionRegistryInterface {
     /**
      * 새 session의 transport와 server를 registry에 등록한다.
      */
-    create(sessionId: string, server: McpServer, transport: StreamableHTTPServerTransport): void
+    create(sessionId: SessionId, server: McpServer, transport: StreamableHTTPServerTransport): void
 
     /**
      * 유효한 session을 조회하고 idle timeout을 갱신한다.
      */
-    get(sessionId: string): SessionRecord | undefined
+    get(sessionId: SessionId): SessionRecord | undefined
 
     /**
      * session을 제거하고 연결된 transport를 닫는다.
      */
-    delete(sessionId: string): Promise<boolean>
+    delete(sessionId: SessionId): Promise<boolean>
 }
 
 /**
@@ -43,14 +48,14 @@ export interface StreamableHttpSessionRegistryInterface {
 @Injectable()
 export class StreamableHttpSessionRegistry implements StreamableHttpSessionRegistryInterface {
     /** session ID와 MCP connection을 process-local memory에 보관한다. */
-    private readonly sessions = new Map<string, SessionRecord>()
+    private readonly sessions = new Map<SessionId, SessionRecord>()
     /** 장시간 유휴 상태로 남은 연결을 정리하는 기준 시간이다. */
     private readonly maxAgeMs = 15 * 60 * 1000
 
     /**
      * server와 transport를 연결하고 transport 종료 시 registry에서도 제거한다.
      */
-    create(sessionId: string, server: McpServer, transport: StreamableHTTPServerTransport): void {
+    create(sessionId: SessionId, server: McpServer, transport: StreamableHTTPServerTransport): void {
         const now = Date.now()
         this.sessions.set(sessionId, {
             transport,
@@ -65,7 +70,7 @@ export class StreamableHttpSessionRegistry implements StreamableHttpSessionRegis
     /**
      * 만료된 session을 제외하고 접근 시각을 갱신한 record를 반환한다.
      */
-    get(sessionId: string): SessionRecord | undefined {
+    get(sessionId: SessionId): SessionRecord | undefined {
         const session = this.sessions.get(sessionId)
         if (!session) return undefined
         const now = Date.now()
@@ -80,7 +85,7 @@ export class StreamableHttpSessionRegistry implements StreamableHttpSessionRegis
     /**
      * registry에서 먼저 제거한 뒤 transport close를 호출해 재진입을 막는다.
      */
-    async delete(sessionId: string): Promise<boolean> {
+    async delete(sessionId: SessionId): Promise<boolean> {
         const session = this.sessions.get(sessionId)
         if (!session) return false
         this.sessions.delete(sessionId)

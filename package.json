@@ -87,7 +87,9 @@
     "testEnvironment": "node",
     "roots": [
       "<rootDir>/apps/http-server/src/",
+      "<rootDir>/apps/http-server/test/",
       "<rootDir>/apps/stdio-server/src/",
+      "<rootDir>/apps/stdio-server/test/",
       "<rootDir>/apps/cli/",
       "<rootDir>/libs/",
       "<rootDir>/test/"

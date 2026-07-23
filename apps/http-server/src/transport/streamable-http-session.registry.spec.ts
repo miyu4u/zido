@@ -1,8 +1,11 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
-import { StreamableHttpSessionRegistry } from './streamable-http-session.registry'
+import { StreamableHttpSessionRegistry, type SessionId } from './streamable-http-session.registry'
 
 describe('StreamableHttpSessionRegistry', () => {
+    /** test 전반에서 동일한 registry key를 사용한다. */
+    const sessionId = 'session-1' as SessionId
+
     afterEach(() => {
         jest.restoreAllMocks()
     })
@@ -15,9 +18,9 @@ describe('StreamableHttpSessionRegistry', () => {
         const registry = new StreamableHttpSessionRegistry()
 
         now.mockReturnValue(1_000)
-        registry.create('session-1', server, transport)
+        registry.create(sessionId, server, transport)
 
-        const created = registry.get('session-1')
+        const created = registry.get(sessionId)
 
         expect(created).toMatchObject({
             server,
@@ -27,14 +30,14 @@ describe('StreamableHttpSessionRegistry', () => {
         })
 
         now.mockReturnValueOnce(1_500)
-        const refreshed = registry.get('session-1')
+        const refreshed = registry.get(sessionId)
 
         expect(refreshed).toBe(created)
         expect(refreshed?.lastAccessedAt).toBe(1_500)
 
         await (transport as { onclose?: () => Promise<unknown> }).onclose?.()
 
-        expect(registry.get('session-1')).toBeUndefined()
+        expect(registry.get(sessionId)).toBeUndefined()
         expect(close).toHaveBeenCalledTimes(1)
     })
 
@@ -46,10 +49,10 @@ describe('StreamableHttpSessionRegistry', () => {
         const registry = new StreamableHttpSessionRegistry()
 
         now.mockReturnValue(1_000)
-        registry.create('session-1', server, transport)
+        registry.create(sessionId, server, transport)
 
         now.mockReturnValueOnce(1_000 + 15 * 60 * 1000 + 1)
-        expect(registry.get('session-1')).toBeUndefined()
+        expect(registry.get(sessionId)).toBeUndefined()
         expect(close).toHaveBeenCalledTimes(1)
     })
 
@@ -60,10 +63,10 @@ describe('StreamableHttpSessionRegistry', () => {
         const server = {} as McpServer
         const registry = new StreamableHttpSessionRegistry()
 
-        registry.create('session-1', server, transport)
+        registry.create(sessionId, server, transport)
 
-        await expect(registry.delete('session-1')).resolves.toBe(true)
-        await expect(registry.delete('session-1')).resolves.toBe(false)
+        await expect(registry.delete(sessionId)).resolves.toBe(true)
+        await expect(registry.delete(sessionId)).resolves.toBe(false)
         expect(close).toHaveBeenCalledTimes(1)
 
         now.mockRestore()
