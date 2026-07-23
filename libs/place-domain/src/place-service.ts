@@ -1,9 +1,5 @@
-/**
- * 장소 관련 도구 통합 클래스
- * 지오코딩, 장소 검색, 주변 검색 기능 제공
- */
 import { Injectable } from '@nestjs/common'
-import { McpException, logger } from 'zido/configuration'
+import { McpException, logger } from 'zido/common'
 import { haversineDistance } from './haversine'
 import { ProviderRouterService } from 'zido/map-providers'
 import type {
@@ -42,9 +38,6 @@ export interface PlaceServiceInterface {
 export class PlaceService implements PlaceServiceInterface {
     constructor(private readonly providerRouter: ProviderRouterService) {}
 
-    /**
-     * 주소를 좌표로 변환 (지오코딩)
-     */
     async geocode(input: GeoGeocodeInput): Promise<GeoGeocodeOutput | null> {
         try {
             const result = await this.providerRouter.geocode(input.address)
@@ -70,9 +63,6 @@ export class PlaceService implements PlaceServiceInterface {
         }
     }
 
-    /**
-     * 키워드로 장소 검색 (단일 결과)
-     */
     async resolve(input: PlaceResolveInput): Promise<PlaceResolveOutput | null> {
         try {
             const result = await this.providerRouter.resolve(input.query)
@@ -100,9 +90,6 @@ export class PlaceService implements PlaceServiceInterface {
         }
     }
 
-    /**
-     * 중심 좌표 기준 주변 장소 검색
-     */
     async searchNearby(input: PlaceSearchNearbyInput): Promise<PlaceSearchNearbyOutput> {
         try {
             // Provider에서 주변 장소 검색
