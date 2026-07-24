@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import { config, McpException, logger } from 'zido/common'
+import { config, McpException, ProviderException, logger } from 'zido/common'
 import { GoogleVendor } from './google/google.vendor'
 import { KakaoVendor } from './kakao/kakao.vendor'
 import { NaverVendor } from './naver/naver.vendor'
@@ -64,6 +64,7 @@ export class ProviderRouterService {
                 errors.push(error instanceof Error ? error : new Error(String(error)))
             }
         }
+        if (errors.length === 0) return null
         throw this.createFailureError(`Failed to resolve "${query}" from all providers.`, errors)
     }
 
@@ -79,6 +80,7 @@ export class ProviderRouterService {
                 errors.push(error instanceof Error ? error : new Error(String(error)))
             }
         }
+        if (errors.length === 0) return []
         throw this.createFailureError(`Failed to search nearby "${keyword}" from all providers.`, errors)
     }
 
@@ -94,6 +96,7 @@ export class ProviderRouterService {
                 errors.push(error instanceof Error ? error : new Error(String(error)))
             }
         }
+        if (errors.length === 0) return null
         throw this.createFailureError(`Failed to geocode "${address}" from all providers.`, errors)
     }
 
@@ -115,7 +118,17 @@ export class ProviderRouterService {
 
     /** fallback 오류들을 외부 MCP error contract로 합친다. */
     private createFailureError(message: string, errors: Error[]): McpException {
+        const providersCount = this.getProviders().length
+        const isAllAuthFailed =
+            errors.length === providersCount &&
+            errors.every(
+                (error) =>
+                    error instanceof ProviderException &&
+                    error.code === 'AUTHENTICATION_FAILED',
+            )
+
+        const code = isAllAuthFailed ? 'AUTHENTICATION_FAILED' : 'NO_PROVIDER_AVAILABLE'
         const errorDetails = errors.map((error) => error.message).join('; ')
-        return new McpException(`${message} Errors: ${errorDetails}`, 'NO_PROVIDER_AVAILABLE')
+        return new McpException(`${message} Errors: ${errorDetails}`, code)
     }
 }

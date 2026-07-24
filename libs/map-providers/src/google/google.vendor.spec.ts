@@ -18,8 +18,17 @@ const place = (overrides: Partial<GooglePlace> = {}): GooglePlace => ({
 
 describe('GoogleVendor', () => {
     it('API key가 없으면 명시적인 ProviderException을 발생시킨다', () => {
-        expect(() => new GoogleVendor({ apiKey: '' })).toThrow(ProviderException)
-        expect(() => new GoogleVendor({ apiKey: '' })).toThrow('Google API key is required')
+        const createVendor = () => new GoogleVendor({ apiKey: '' })
+        expect(createVendor).toThrow(ProviderException)
+        expect(createVendor).toThrow('Google API key is required')
+        try {
+            createVendor()
+        } catch (error) {
+            expect(error).toMatchObject({
+                provider: 'google',
+                code: 'MISSING_API_KEY',
+            })
+        }
     })
 
     it('텍스트 검색 요청을 구성하고 장소를 공통 형식으로 변환한다', async () => {
@@ -128,8 +137,8 @@ describe('GoogleVendor', () => {
         })
         await expect(provider.geocode('주소')).rejects.toMatchObject({
             provider: 'google',
-            code: 'REQUEST_FAILED',
-            message: 'Failed to geocode address: Geocode failed: denied',
+            code: 'AUTHENTICATION_FAILED',
+            message: 'Geocode failed: denied',
         })
     })
 
@@ -143,4 +152,35 @@ describe('GoogleVendor', () => {
             message: 'Failed to resolve place: network down',
         })
     })
+
+    it.each([
+        { status: 401, expectedCode: 'AUTHENTICATION_FAILED', errorMsg: 'Unauthorized' },
+        { status: 403, expectedCode: 'AUTHENTICATION_FAILED', errorMsg: 'Forbidden' },
+        { status: 400, expectedCode: 'REQUEST_FAILED', errorMsg: 'Bad Request' },
+        {
+            status: 400,
+            expectedCode: 'AUTHENTICATION_FAILED',
+            errorMsg: 'API key not valid',
+            details: [{ reason: 'API_KEY_INVALID' }],
+        },
+    ])(
+        'Axios $status Rejection이 $expectedCode ProviderException으로 변환된다',
+        async ({ status, expectedCode, errorMsg, details }) => {
+        const provider = new GoogleVendor({ apiKey: 'test-key' })
+            const mockError = Object.assign(new Error(errorMsg), {
+                isAxiosError: true,
+                response: {
+                    status,
+                    data: details ? { error: { details } } : undefined,
+        },
+})
+            jest.spyOn(provider.http, 'post').mockRejectedValue(mockError)
+
+        await expect(provider.resolve('카페')).rejects.toMatchObject({
+            provider: 'google',
+                code: expectedCode,
+                message: `Failed to resolve place: ${errorMsg}`,
+            })
+        },
+    )
 })

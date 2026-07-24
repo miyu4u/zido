@@ -17,8 +17,22 @@ const placeDocument = (overrides: Partial<KakaoPlaceDocument> = {}): KakaoPlaceD
 
 describe('KakaoVendor', () => {
     it('API key가 없으면 명시적인 ProviderException을 발생시킨다', () => {
-        expect(() => new KakaoVendor({ restKey: '' })).toThrow(ProviderException)
-        expect(() => new KakaoVendor({ restKey: '' })).toThrow('Kakao REST API key is required')
+        // Bypass config type checking to test missing key at runtime
+        const invalidConfigs = [
+            { restKey: '' },
+            {} as unknown as { restKey: string },
+        ]
+
+        for (const config of invalidConfigs) {
+            expect(() => new KakaoVendor(config)).toThrow(ProviderException)
+            expect(() => new KakaoVendor(config)).toThrow('Kakao REST API key is required')
+            expect(() => new KakaoVendor(config)).toThrow(
+                expect.objectContaining({
+                    code: 'MISSING_API_KEY',
+                    provider: 'kakao',
+                })
+            )
+        }
     })
 
     it('키워드 검색 요청을 구성하고 장소를 공통 형식으로 변환한다', async () => {
@@ -116,4 +130,31 @@ describe('KakaoVendor', () => {
             message: 'Failed to resolve place: network down',
         })
     })
+
+    it.each([401, 403])(
+        'Axios %i rejection이 AUTHENTICATION_FAILED ProviderException으로 변환된다',
+        async (status) => {
+            const provider = new KakaoVendor({ restKey: 'test-key' })
+            const errorMsg = status === 401 ? 'Unauthorized' : 'Forbidden'
+            const mockError = Object.assign(new Error(errorMsg), {
+                isAxiosError: true,
+                response: { status },
+            })
+            jest.spyOn(provider.http, 'get').mockRejectedValue(mockError)
+
+            let thrownError: unknown = null
+            try {
+                await provider.resolve('카페')
+            } catch (error) {
+                thrownError = error
+            }
+
+            expect(thrownError).toBeInstanceOf(ProviderException)
+            expect(thrownError).toMatchObject({
+                provider: 'kakao',
+                code: 'AUTHENTICATION_FAILED',
+                message: `Failed to resolve place: ${errorMsg}`,
+            })
+        },
+    )
 })

@@ -165,10 +165,11 @@ export class GoogleVendor implements Provider, IHttpService {
                 if (response.data.status === 'ZERO_RESULTS') {
                     return null
                 }
+                const code = response.data.status === 'REQUEST_DENIED' ? 'AUTHENTICATION_FAILED' : 'REQUEST_FAILED'
                 throw new ProviderException(
                     `Geocode failed: ${response.data.error_message || response.data.status}`,
                     this.providerName,
-                    'REQUEST_FAILED',
+                    code,
                 )
             }
 
@@ -253,7 +254,33 @@ export class GoogleVendor implements Provider, IHttpService {
      * @returns ProviderException 객체
      */
     private toProviderException(message: string, error: unknown): ProviderException {
+        if (error instanceof ProviderException) {
+            return error
+        }
+        const code = this.determineErrorCode(error)
         const detail = error instanceof Error ? error.message : String(error)
-        return new ProviderException(`${message}: ${detail}`, this.providerName, 'REQUEST_FAILED')
+        return new ProviderException(`${message}: ${detail}`, this.providerName, code)
+    }
+
+    /**
+     * HTTP status와 Google ErrorInfo reason으로 credential 거부를 식별한다.
+     */
+    private determineErrorCode(error: unknown): 'AUTHENTICATION_FAILED' | 'REQUEST_FAILED' {
+        if (!axios.isAxiosError(error)) return 'REQUEST_FAILED'
+        const status = error.response?.status
+        if (status === 401 || status === 403) return 'AUTHENTICATION_FAILED'
+        if (status !== 400) return 'REQUEST_FAILED'
+        const data: unknown = error.response?.data
+        if (!data || typeof data !== 'object' || !('error' in data)) return 'REQUEST_FAILED'
+        const payload = data.error
+        if (!payload || typeof payload !== 'object' || !('details' in payload)) return 'REQUEST_FAILED'
+        if (!Array.isArray(payload.details)) return 'REQUEST_FAILED'
+        const hasInvalidApiKey = payload.details.some((detail: unknown) => (
+            detail !== null
+            && typeof detail === 'object'
+            && 'reason' in detail
+            && detail.reason === 'API_KEY_INVALID'
+        ))
+        return hasInvalidApiKey ? 'AUTHENTICATION_FAILED' : 'REQUEST_FAILED'
     }
 }

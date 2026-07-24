@@ -21,10 +21,26 @@ const localItem = (overrides: Partial<NaverLocalSearchItem> = {}): NaverLocalSea
 
 describe('NaverVendor', () => {
     it('인증 정보가 없으면 명시적인 ProviderException을 발생시킨다', () => {
-        expect(() => new NaverVendor({ clientId: '', clientSecret: '' })).toThrow(ProviderException)
-        expect(() => new NaverVendor({ clientId: '', clientSecret: '' })).toThrow(
-            'Naver Client ID and Secret are required',
-        )
+        const createVendorEmptyBoth = () => new NaverVendor({ clientId: '', clientSecret: '' })
+        const createVendorEmptySecret = () => new NaverVendor({ clientId: 'client', clientSecret: '' })
+        const createVendorEmptyId = () => new NaverVendor({ clientId: '', clientSecret: 'secret' })
+
+        for (const createVendor of [createVendorEmptyBoth, createVendorEmptySecret, createVendorEmptyId]) {
+            expect(createVendor).toThrow(ProviderException)
+            expect(createVendor).toThrow('Naver Client ID and Secret are required')
+
+            let errorOccurred: unknown = null
+            try {
+                createVendor()
+            } catch (err) {
+                errorOccurred = err
+            }
+            expect(errorOccurred).toBeInstanceOf(ProviderException)
+            if (errorOccurred instanceof ProviderException) {
+                expect(errorOccurred.code).toBe('MISSING_API_KEY')
+                expect(errorOccurred.provider).toBe('naver')
+            }
+        }
     })
 
     it('로컬 검색 요청을 구성하고 HTML과 좌표를 정규화한다', async () => {
@@ -93,7 +109,8 @@ describe('NaverVendor', () => {
     it('지오코딩 요청을 구성하고 첫 주소를 좌표로 반환한다', async () => {
         const provider = new NaverVendor({ clientId: 'client', clientSecret: 'secret' })
         const address = { roadAddress: '서울시 중구 세종대로', x: '127.01', y: '37.51' }
-        const geocodeHttp = (provider as unknown as { geocodeHttp: { get: jest.Mock } }).geocodeHttp
+        const vendor = provider as unknown as { geocodeHttp: { get: jest.Mock } }
+        const geocodeHttp = vendor.geocodeHttp
         const get = jest.spyOn(geocodeHttp, 'get').mockResolvedValue({
             data: { status: 'OK', addresses: [address] } satisfies NaverGeocodeResponse,
         })
@@ -106,15 +123,101 @@ describe('NaverVendor', () => {
 
     it('지오코딩 비정상 상태와 HTTP 실패를 ProviderException으로 변환한다', async () => {
         const provider = new NaverVendor({ clientId: 'client', clientSecret: 'secret' })
-        const geocodeHttp = (provider as unknown as { geocodeHttp: { get: jest.Mock } }).geocodeHttp
-        jest.spyOn(geocodeHttp, 'get').mockResolvedValue({
+        const vendor = provider as unknown as { geocodeHttp: { get: jest.Mock } }
+        const geocodeHttp = vendor.geocodeHttp
+        
+        // 1. 비정상 상태 (status !== 'OK')
+        jest.spyOn(geocodeHttp, 'get').mockResolvedValueOnce({
             data: { status: 'REQUEST_DENIED', errorMessage: 'denied', addresses: [] } satisfies NaverGeocodeResponse,
         })
 
         await expect(provider.geocode('주소')).rejects.toMatchObject({
             provider: 'naver',
             code: 'REQUEST_FAILED',
-            message: 'Failed to geocode address: Geocode failed: denied',
+            message: 'Geocode failed: denied',
+        })
+
+        // 2. HTTP/네트워크 실패 (일반 에러)
+        jest.spyOn(geocodeHttp, 'get').mockRejectedValueOnce(new Error('network down'))
+
+        await expect(provider.geocode('주소')).rejects.toMatchObject({
+            provider: 'naver',
+            code: 'REQUEST_FAILED',
+            message: 'Failed to geocode address: network down',
         })
     })
+
+    it.each([
+        {
+            name: 'resolve',
+            status: 401,
+            action: (provider: NaverVendor) => provider.resolve('카페'),
+            expectedMsg: 'Failed to resolve place: Unauthorized',
+        },
+        {
+            name: 'resolve',
+            status: 403,
+            action: (provider: NaverVendor) => provider.resolve('카페'),
+            expectedMsg: 'Failed to resolve place: Forbidden',
+        },
+        {
+            name: 'searchNearby',
+            status: 401,
+            action: (provider: NaverVendor) => provider.searchNearby({ lat: 37.5, lng: 127 }, '카페', 500),
+            expectedMsg: 'Failed to search nearby: Unauthorized',
+        },
+        {
+            name: 'searchNearby',
+            status: 403,
+            action: (provider: NaverVendor) => provider.searchNearby({ lat: 37.5, lng: 127 }, '카페', 500),
+            expectedMsg: 'Failed to search nearby: Forbidden',
+        },
+        {
+            name: 'geocode',
+            status: 401,
+            action: (provider: NaverVendor) => provider.geocode('주소'),
+            expectedMsg: 'Failed to geocode address: Unauthorized',
+            useGeocodeHttp: true,
+        },
+        {
+            name: 'geocode',
+            status: 403,
+            action: (provider: NaverVendor) => provider.geocode('주소'),
+            expectedMsg: 'Failed to geocode address: Forbidden',
+            useGeocodeHttp: true,
+        },
+    ])(
+        'Axios $status rejection during $name이 AUTHENTICATION_FAILED ProviderException으로 변환된다',
+        async ({
+            status,
+            action,
+            expectedMsg,
+            useGeocodeHttp,
+        }: {
+            status: number
+            action: (provider: NaverVendor) => Promise<unknown>
+            expectedMsg: string
+            useGeocodeHttp?: boolean
+        }) => {
+        const provider = new NaverVendor({ clientId: 'client', clientSecret: 'secret' })
+            const errorMsg = status === 401 ? 'Unauthorized' : 'Forbidden'
+            const mockError = Object.assign(new Error(errorMsg), {
+                isAxiosError: true,
+                response: { status },
+            })
+
+            if (useGeocodeHttp) {
+        const vendor = provider as unknown as { geocodeHttp: { get: jest.Mock } }
+                jest.spyOn(vendor.geocodeHttp, 'get').mockRejectedValue(mockError)
+            } else {
+            jest.spyOn(provider.http, 'get').mockRejectedValue(mockError)
+            }
+
+            await expect(action(provider)).rejects.toMatchObject({
+                provider: 'naver',
+                code: 'AUTHENTICATION_FAILED',
+                message: expectedMsg,
+            })
+        },
+    )
 })
