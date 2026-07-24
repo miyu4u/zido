@@ -1,14 +1,8 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { Injectable } from '@nestjs/common';
-import {
-  logger,
-  validateAddress,
-  validateCoordinates,
-  validateRadius,
-  validateSearchQuery,
-} from 'zido/common';
-import { PlaceService } from 'zido/place-domain';
-import { z } from 'zod';
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { Injectable } from '@nestjs/common'
+import { logger, validateAddress, validateCoordinates, validateRadius, validateSearchQuery } from 'zido/common'
+import { PlaceService } from 'zido/place-domain'
+import { z } from 'zod'
 
 /**
  * place domain 기능을 MCP tool로 노출하는 registry contract입니다.
@@ -17,14 +11,12 @@ export interface McpToolRegistrarServiceInterface {
   /**
    * 지원하는 place tool과 handler를 전달받은 MCP server에 연결합니다.
    */
-  registerTools(server: McpServer): Promise<void>;
+  registerTools(server: McpServer): Promise<void>
 }
 
 @Injectable()
 export class McpToolRegistrarService implements McpToolRegistrarServiceInterface {
-  constructor(
-    private readonly placeService: PlaceService,
-  ) { }
+  constructor(private readonly placeService: PlaceService) {}
 
   /**
    * 입력 검증과 오류 응답을 포함한 place tool handler 전체를 server에 등록합니다.
@@ -39,11 +31,11 @@ export class McpToolRegistrarService implements McpToolRegistrarServiceInterface
         }),
       },
       async (args) => {
-        logger.debug({ tool: 'place_resolve', args }, 'Tool call');
+        logger.debug({ tool: 'place_resolve', args }, 'Tool call')
 
         try {
           // 입력 검증
-          const queryValidation = validateSearchQuery(args.query);
+          const queryValidation = validateSearchQuery(args.query)
           if (!queryValidation.valid) {
             return {
               content: [
@@ -53,12 +45,12 @@ export class McpToolRegistrarService implements McpToolRegistrarServiceInterface
                 },
               ],
               isError: true,
-            };
+            }
           }
 
           const result = await this.placeService.resolve({
             query: queryValidation.sanitized!,
-          });
+          })
           return {
             content: [
               {
@@ -66,11 +58,10 @@ export class McpToolRegistrarService implements McpToolRegistrarServiceInterface
                 text: JSON.stringify(result, null, 2),
               },
             ],
-          };
+          }
         } catch (error) {
-          logger.error({ tool: 'place_resolve', error }, 'Tool call failed');
-          const message =
-            error instanceof Error ? error.message : String(error);
+          logger.error({ tool: 'place_resolve', error }, 'Tool call failed')
+          const message = error instanceof Error ? error.message : String(error)
           return {
             content: [
               {
@@ -79,10 +70,10 @@ export class McpToolRegistrarService implements McpToolRegistrarServiceInterface
               },
             ],
             isError: true,
-          };
+          }
         }
       },
-    );
+    )
 
     server.registerTool(
       'place_search_nearby',
@@ -100,7 +91,7 @@ export class McpToolRegistrarService implements McpToolRegistrarServiceInterface
         }),
       },
       async (args) => {
-        logger.debug({ tool: 'place_search_nearby', args }, 'Tool call');
+        logger.debug({ tool: 'place_search_nearby', args }, 'Tool call')
 
         try {
           // 입력 검증
@@ -113,7 +104,7 @@ export class McpToolRegistrarService implements McpToolRegistrarServiceInterface
                 },
               ],
               isError: true,
-            };
+            }
           }
 
           if (!validateRadius(args.radiusM)) {
@@ -125,10 +116,10 @@ export class McpToolRegistrarService implements McpToolRegistrarServiceInterface
                 },
               ],
               isError: true,
-            };
+            }
           }
 
-          const keywordValidation = validateSearchQuery(args.keyword);
+          const keywordValidation = validateSearchQuery(args.keyword)
           if (!keywordValidation.valid) {
             return {
               content: [
@@ -138,14 +129,14 @@ export class McpToolRegistrarService implements McpToolRegistrarServiceInterface
                 },
               ],
               isError: true,
-            };
+            }
           }
 
           const result = await this.placeService.searchNearby({
             center: args.center,
             keyword: keywordValidation.sanitized!,
             radiusM: args.radiusM,
-          });
+          })
           return {
             content: [
               {
@@ -153,14 +144,10 @@ export class McpToolRegistrarService implements McpToolRegistrarServiceInterface
                 text: JSON.stringify(result, null, 2),
               },
             ],
-          };
+          }
         } catch (error) {
-          logger.error(
-            { tool: 'place_search_nearby', error },
-            'Tool call failed',
-          );
-          const message =
-            error instanceof Error ? error.message : String(error);
+          logger.error({ tool: 'place_search_nearby', error }, 'Tool call failed')
+          const message = error instanceof Error ? error.message : String(error)
           return {
             content: [
               {
@@ -169,10 +156,10 @@ export class McpToolRegistrarService implements McpToolRegistrarServiceInterface
               },
             ],
             isError: true,
-          };
+          }
         }
       },
-    );
+    )
 
     server.registerTool(
       'place_geocode',
@@ -183,11 +170,11 @@ export class McpToolRegistrarService implements McpToolRegistrarServiceInterface
         }),
       },
       async (args) => {
-        logger.debug({ tool: 'place_geocode', args }, 'Tool call');
+        logger.debug({ tool: 'place_geocode', args }, 'Tool call')
 
         try {
           // 입력 검증
-          const addressValidation = validateAddress(args.address);
+          const addressValidation = validateAddress(args.address)
           if (!addressValidation.valid) {
             return {
               content: [
@@ -197,12 +184,12 @@ export class McpToolRegistrarService implements McpToolRegistrarServiceInterface
                 },
               ],
               isError: true,
-            };
+            }
           }
 
           const result = await this.placeService.geocode({
             address: addressValidation.sanitized!,
-          });
+          })
           return {
             content: [
               {
@@ -210,11 +197,10 @@ export class McpToolRegistrarService implements McpToolRegistrarServiceInterface
                 text: JSON.stringify(result, null, 2),
               },
             ],
-          };
+          }
         } catch (error) {
-          logger.error({ tool: 'place_geocode', error }, 'Tool call failed');
-          const message =
-            error instanceof Error ? error.message : String(error);
+          logger.error({ tool: 'place_geocode', error }, 'Tool call failed')
+          const message = error instanceof Error ? error.message : String(error)
           return {
             content: [
               {
@@ -223,11 +209,11 @@ export class McpToolRegistrarService implements McpToolRegistrarServiceInterface
               },
             ],
             isError: true,
-          };
+          }
         }
       },
-    );
+    )
 
-    logger.info('Tools registered');
+    logger.info('Tools registered')
   }
 }

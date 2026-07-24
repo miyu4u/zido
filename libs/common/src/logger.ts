@@ -6,5 +6,5 @@ import pino from 'pino'
  * 로그는 stderr로 출력하도록 설정합니다.
  */
 export const logger = pino({
-    enabled: false,
+  enabled: false,
 })

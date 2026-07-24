@@ -1,13 +1,13 @@
-import { Injectable } from '@nestjs/common';
-import axios, { AxiosInstance } from 'axios';
-import { ProviderException } from 'zido/common';
-import type { GeoResult, IHttpService, Place, Provider } from '../typed';
+import { Injectable } from '@nestjs/common'
+import axios, { AxiosInstance } from 'axios'
+import { ProviderException } from 'zido/common'
+import type { GeoResult, IHttpService, Place, Provider } from '../typed'
 import type {
   KakaoAddressSearchResponse,
   KakaoKeywordSearchResponse,
   KakaoPlaceDocument,
   KakaoProviderConfig,
-} from './typed';
+} from './typed'
 
 /**
  * Kakao Local API Provider
@@ -15,26 +15,22 @@ import type {
  */
 @Injectable()
 export class KakaoVendor implements Provider, IHttpService {
-  private readonly providerName = 'kakao';
-  private readonly restKey: string;
-  private readonly baseUrl = 'https://dapi.kakao.com/v2/local';
-  public http: AxiosInstance;
+  private readonly providerName = 'kakao'
+  private readonly restKey: string
+  private readonly baseUrl = 'https://dapi.kakao.com/v2/local'
+  public http: AxiosInstance
 
   constructor(config: KakaoProviderConfig) {
     if (!config.restKey) {
-      throw new ProviderException(
-        'Kakao REST API key is required',
-        'kakao',
-        'MISSING_API_KEY',
-      );
+      throw new ProviderException('Kakao REST API key is required', 'kakao', 'MISSING_API_KEY')
     }
-    this.restKey = config.restKey;
+    this.restKey = config.restKey
     this.http = axios.create({
       baseURL: this.baseUrl,
       headers: {
         Authorization: `KakaoAK ${this.restKey}`,
       },
-    });
+    })
   }
 
   /**
@@ -44,24 +40,21 @@ export class KakaoVendor implements Provider, IHttpService {
    */
   async resolve(query: string): Promise<Place | null> {
     try {
-      const response = await this.http.get<KakaoKeywordSearchResponse>(
-        '/search/keyword.json',
-        {
-          params: {
-            query,
-            size: 1,
-          },
+      const response = await this.http.get<KakaoKeywordSearchResponse>('/search/keyword.json', {
+        params: {
+          query,
+          size: 1,
         },
-      );
+      })
 
-      const doc = response.data.documents[0];
+      const doc = response.data.documents[0]
       if (!doc) {
-        return null;
+        return null
       }
 
-      return this.toPlace(doc);
+      return this.toPlace(doc)
     } catch (error) {
-      throw this.toProviderException('Failed to resolve place', error);
+      throw this.toProviderException('Failed to resolve place', error)
     }
   }
 
@@ -72,32 +65,23 @@ export class KakaoVendor implements Provider, IHttpService {
    * @param radiusM 반경(미터)
    * @returns Place 객체 배열
    */
-  async searchNearby(
-    center: { lat: number; lng: number },
-    keyword: string,
-    radiusM: number,
-  ): Promise<Place[]> {
+  async searchNearby(center: { lat: number; lng: number }, keyword: string, radiusM: number): Promise<Place[]> {
     try {
-      const radius = this.clampRadius(radiusM);
-      const response = await this.http.get<KakaoKeywordSearchResponse>(
-        '/search/keyword.json',
-        {
-          params: {
-            query: keyword,
-            x: center.lng,
-            y: center.lat,
-            radius,
-            size: 15,
-            sort: 'distance',
-          },
+      const radius = this.clampRadius(radiusM)
+      const response = await this.http.get<KakaoKeywordSearchResponse>('/search/keyword.json', {
+        params: {
+          query: keyword,
+          x: center.lng,
+          y: center.lat,
+          radius,
+          size: 15,
+          sort: 'distance',
         },
-      );
+      })
 
-      return response.data.documents
-        .map((doc) => this.toPlace(doc))
-        .filter((item): item is Place => item !== null);
+      return response.data.documents.map((doc) => this.toPlace(doc)).filter((item): item is Place => item !== null)
     } catch (error) {
-      throw this.toProviderException('Failed to search nearby', error);
+      throw this.toProviderException('Failed to search nearby', error)
     }
   }
 
@@ -108,24 +92,21 @@ export class KakaoVendor implements Provider, IHttpService {
    */
   async geocode(address: string): Promise<GeoResult | null> {
     try {
-      const response = await this.http.get<KakaoAddressSearchResponse>(
-        '/search/address.json',
-        {
-          params: {
-            query: address,
-            size: 1,
-          },
+      const response = await this.http.get<KakaoAddressSearchResponse>('/search/address.json', {
+        params: {
+          query: address,
+          size: 1,
         },
-      );
+      })
 
-      const doc = response.data.documents[0];
+      const doc = response.data.documents[0]
       if (!doc) {
-        return null;
+        return null
       }
 
-      return this.toGeoResult(doc);
+      return this.toGeoResult(doc)
     } catch (error) {
-      throw this.toProviderException('Failed to geocode address', error);
+      throw this.toProviderException('Failed to geocode address', error)
     }
   }
 
@@ -135,11 +116,11 @@ export class KakaoVendor implements Provider, IHttpService {
    * @returns Place 객체 또는 null
    */
   private toPlace(doc: KakaoPlaceDocument): Place | null {
-    const lat = Number.parseFloat(doc.y);
-    const lng = Number.parseFloat(doc.x);
+    const lat = Number.parseFloat(doc.y)
+    const lng = Number.parseFloat(doc.x)
 
     if (Number.isNaN(lat) || Number.isNaN(lng)) {
-      return null;
+      return null
     }
 
     return {
@@ -150,7 +131,7 @@ export class KakaoVendor implements Provider, IHttpService {
       lng,
       provider: this.providerName,
       raw: doc,
-    };
+    }
   }
 
   /**
@@ -158,14 +139,12 @@ export class KakaoVendor implements Provider, IHttpService {
    * @param doc Kakao 주소 문서
    * @returns GeoResult 객체 또는 null
    */
-  private toGeoResult(
-    doc: KakaoAddressSearchResponse['documents'][number],
-  ): GeoResult | null {
-    const lat = Number.parseFloat(doc.y);
-    const lng = Number.parseFloat(doc.x);
+  private toGeoResult(doc: KakaoAddressSearchResponse['documents'][number]): GeoResult | null {
+    const lat = Number.parseFloat(doc.y)
+    const lng = Number.parseFloat(doc.x)
 
     if (Number.isNaN(lat) || Number.isNaN(lng)) {
-      return null;
+      return null
     }
 
     return {
@@ -173,7 +152,7 @@ export class KakaoVendor implements Provider, IHttpService {
       lng,
       provider: this.providerName,
       raw: doc,
-    };
+    }
   }
 
   /**
@@ -184,22 +163,20 @@ export class KakaoVendor implements Provider, IHttpService {
    */
   private clampRadius(radiusM: number): number {
     if (!Number.isFinite(radiusM)) {
-      return 0;
+      return 0
     }
 
-    return Math.min(Math.max(Math.round(radiusM), 0), 20000);
+    return Math.min(Math.max(Math.round(radiusM), 0), 20000)
   }
 
-    /**
-     * 이미 분류된 provider 오류를 보존하고 HTTP 인증 실패만 별도 code로 변환한다.
-     */
-    private toProviderException(message: string, error: unknown): ProviderException {
-        if (error instanceof ProviderException) return error
-        const detail = error instanceof Error ? error.message : String(error)
-        const status = axios.isAxiosError(error) ? error.response?.status : undefined
-        const code = status === 401 || status === 403
-            ? 'AUTHENTICATION_FAILED'
-            : 'REQUEST_FAILED'
-        return new ProviderException(`${message}: ${detail}`, this.providerName, code)
-    }
+  /**
+   * 이미 분류된 provider 오류를 보존하고 HTTP 인증 실패만 별도 code로 변환한다.
+   */
+  private toProviderException(message: string, error: unknown): ProviderException {
+    if (error instanceof ProviderException) return error
+    const detail = error instanceof Error ? error.message : String(error)
+    const status = axios.isAxiosError(error) ? error.response?.status : undefined
+    const code = status === 401 || status === 403 ? 'AUTHENTICATION_FAILED' : 'REQUEST_FAILED'
+    return new ProviderException(`${message}: ${detail}`, this.providerName, code)
+  }
 }

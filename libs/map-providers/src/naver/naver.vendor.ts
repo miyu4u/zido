@@ -1,14 +1,14 @@
-import { Injectable } from '@nestjs/common';
-import axios, { AxiosInstance } from 'axios';
-import { ProviderException } from 'zido/common';
-import type { GeoResult, IHttpService, Place, Provider } from '../typed';
+import { Injectable } from '@nestjs/common'
+import axios, { AxiosInstance } from 'axios'
+import { ProviderException } from 'zido/common'
+import type { GeoResult, IHttpService, Place, Provider } from '../typed'
 import type {
   NaverGeocodeAddress,
   NaverGeocodeResponse,
   NaverLocalSearchItem,
   NaverLocalSearchResponse,
   NaverProviderConfig,
-} from './typed';
+} from './typed'
 
 /**
  * Naver Local API Provider
@@ -19,53 +19,48 @@ export class NaverVendor implements Provider, IHttpService {
   /**
    * Provider 식별자
    */
-  private readonly providerName = 'naver';
+  private readonly providerName = 'naver'
 
   /**
    * Naver API 인증 정보
    */
-  private readonly clientId: string;
-  private readonly clientSecret: string;
+  private readonly clientId: string
+  private readonly clientSecret: string
 
   /**
    * API 엔드포인트 기본 URL
    */
-  private readonly searchBaseUrl = 'https://openapi.naver.com/v1/search'; // 장소 검색 API
-  private readonly geocodeBaseUrl =
-    'https://naveropenapi.apigw.ntruss.com/map-geocode/v2'; // 지오코딩 API
+  private readonly searchBaseUrl = 'https://openapi.naver.com/v1/search' // 장소 검색 API
+  private readonly geocodeBaseUrl = 'https://naveropenapi.apigw.ntruss.com/map-geocode/v2' // 지오코딩 API
 
   /**
    * HTTP 클라이언트 인스턴스
    * - http: 장소 검색용 Axios 인스턴스
    * - geocodeHttp: 지오코딩용 Axios 인스턴스
    */
-  public http: AxiosInstance;
-  private readonly geocodeHttp: AxiosInstance;
+  public http: AxiosInstance
+  private readonly geocodeHttp: AxiosInstance
 
   constructor(config: NaverProviderConfig) {
     if (!config.clientId || !config.clientSecret) {
-      throw new ProviderException(
-        'Naver Client ID and Secret are required',
-        'naver',
-        'MISSING_API_KEY',
-      );
+      throw new ProviderException('Naver Client ID and Secret are required', 'naver', 'MISSING_API_KEY')
     }
-    this.clientId = config.clientId;
-    this.clientSecret = config.clientSecret;
+    this.clientId = config.clientId
+    this.clientSecret = config.clientSecret
     this.http = axios.create({
       baseURL: this.searchBaseUrl,
       headers: {
         'X-Naver-Client-Id': this.clientId,
         'X-Naver-Client-Secret': this.clientSecret,
       },
-    });
+    })
     this.geocodeHttp = axios.create({
       baseURL: this.geocodeBaseUrl,
       headers: {
         'X-NCP-APIGW-API-KEY-ID': this.clientId,
         'X-NCP-APIGW-API-KEY': this.clientSecret,
       },
-    });
+    })
   }
 
   /**
@@ -75,25 +70,22 @@ export class NaverVendor implements Provider, IHttpService {
    */
   async resolve(query: string): Promise<Place | null> {
     try {
-      const response = await this.http.get<NaverLocalSearchResponse>(
-        '/local.json',
-        {
-          params: {
-            query,
-            display: 1,
-            start: 1,
-          },
+      const response = await this.http.get<NaverLocalSearchResponse>('/local.json', {
+        params: {
+          query,
+          display: 1,
+          start: 1,
         },
-      );
+      })
 
-      const item = response.data.items?.[0];
+      const item = response.data.items?.[0]
       if (!item) {
-        return null;
+        return null
       }
 
-      return this.toPlace(item);
+      return this.toPlace(item)
     } catch (error) {
-      throw this.toProviderException('Failed to resolve place', error);
+      throw this.toProviderException('Failed to resolve place', error)
     }
   }
 
@@ -104,31 +96,22 @@ export class NaverVendor implements Provider, IHttpService {
    * @param radiusM 반경(미터)
    * @returns Place 객체 배열
    */
-  async searchNearby(
-    center: { lat: number; lng: number },
-    keyword: string,
-    radiusM: number,
-  ): Promise<Place[]> {
+  async searchNearby(center: { lat: number; lng: number }, keyword: string, radiusM: number): Promise<Place[]> {
     try {
-      void center;
-      void radiusM;
+      void center
+      void radiusM
 
-      const response = await this.http.get<NaverLocalSearchResponse>(
-        '/local.json',
-        {
-          params: {
-            query: keyword,
-            display: 5,
-            start: 1,
-          },
+      const response = await this.http.get<NaverLocalSearchResponse>('/local.json', {
+        params: {
+          query: keyword,
+          display: 5,
+          start: 1,
         },
-      );
+      })
 
-      return response.data.items
-        .map((item) => this.toPlace(item))
-        .filter((item): item is Place => item !== null);
+      return response.data.items.map((item) => this.toPlace(item)).filter((item): item is Place => item !== null)
     } catch (error) {
-      throw this.toProviderException('Failed to search nearby', error);
+      throw this.toProviderException('Failed to search nearby', error)
     }
   }
 
@@ -139,31 +122,28 @@ export class NaverVendor implements Provider, IHttpService {
    */
   async geocode(address: string): Promise<GeoResult | null> {
     try {
-      const response = await this.geocodeHttp.get<NaverGeocodeResponse>(
-        '/geocode',
-        {
-          params: {
-            query: address,
-          },
+      const response = await this.geocodeHttp.get<NaverGeocodeResponse>('/geocode', {
+        params: {
+          query: address,
         },
-      );
+      })
 
       if (response.data.status && response.data.status !== 'OK') {
         throw new ProviderException(
           `Geocode failed: ${response.data.errorMessage || response.data.status}`,
           this.providerName,
           'REQUEST_FAILED',
-        );
+        )
       }
 
-      const doc = response.data.addresses?.[0];
+      const doc = response.data.addresses?.[0]
       if (!doc) {
-        return null;
+        return null
       }
 
-      return this.toGeoResult(doc);
+      return this.toGeoResult(doc)
     } catch (error) {
-      throw this.toProviderException('Failed to geocode address', error);
+      throw this.toProviderException('Failed to geocode address', error)
     }
   }
 
@@ -173,11 +153,11 @@ export class NaverVendor implements Provider, IHttpService {
    * @returns Place 객체 또는 null
    */
   private toPlace(item: NaverLocalSearchItem): Place | null {
-    const lat = this.normalizeCoordinate(item.mapy, 90);
-    const lng = this.normalizeCoordinate(item.mapx, 180);
+    const lat = this.normalizeCoordinate(item.mapy, 90)
+    const lng = this.normalizeCoordinate(item.mapx, 180)
 
     if (lat === null || lng === null) {
-      return null;
+      return null
     }
 
     return {
@@ -188,7 +168,7 @@ export class NaverVendor implements Provider, IHttpService {
       lng,
       provider: this.providerName,
       raw: item,
-    };
+    }
   }
 
   /**
@@ -197,11 +177,11 @@ export class NaverVendor implements Provider, IHttpService {
    * @returns GeoResult 객체 또는 null
    */
   private toGeoResult(doc: NaverGeocodeAddress): GeoResult | null {
-    const lat = this.normalizeCoordinate(doc.y, 90);
-    const lng = this.normalizeCoordinate(doc.x, 180);
+    const lat = this.normalizeCoordinate(doc.y, 90)
+    const lng = this.normalizeCoordinate(doc.x, 180)
 
     if (lat === null || lng === null) {
-      return null;
+      return null
     }
 
     return {
@@ -209,7 +189,7 @@ export class NaverVendor implements Provider, IHttpService {
       lng,
       provider: this.providerName,
       raw: doc,
-    };
+    }
   }
 
   /**
@@ -219,21 +199,21 @@ export class NaverVendor implements Provider, IHttpService {
    * @returns 정규화된 좌표 값 또는 null
    */
   private normalizeCoordinate(value: string, maxAbs: number): number | null {
-    const parsed = Number.parseFloat(value);
+    const parsed = Number.parseFloat(value)
     if (!Number.isFinite(parsed)) {
-      return null;
+      return null
     }
 
     if (Math.abs(parsed) <= maxAbs) {
-      return parsed;
+      return parsed
     }
 
-    const scaled = parsed / 1e7;
+    const scaled = parsed / 1e7
     if (Math.abs(scaled) <= maxAbs) {
-      return scaled;
+      return scaled
     }
 
-    return null;
+    return null
   }
 
   /**
@@ -242,19 +222,17 @@ export class NaverVendor implements Provider, IHttpService {
    * @returns HTML이 제거된 문자열
    */
   private stripHtml(value: string): string {
-    return value.replace(/<[^>]+>/g, '');
+    return value.replace(/<[^>]+>/g, '')
   }
 
-    /**
-     * 이미 분류된 provider 오류를 보존하고 HTTP 인증 실패만 별도 code로 변환한다.
-     */
-    private toProviderException(message: string, error: unknown): ProviderException {
-        if (error instanceof ProviderException) return error
-        const detail = error instanceof Error ? error.message : String(error)
-        const status = axios.isAxiosError(error) ? error.response?.status : undefined
-        const code = status === 401 || status === 403
-            ? 'AUTHENTICATION_FAILED'
-            : 'REQUEST_FAILED'
-        return new ProviderException(`${message}: ${detail}`, this.providerName, code)
-    }
+  /**
+   * 이미 분류된 provider 오류를 보존하고 HTTP 인증 실패만 별도 code로 변환한다.
+   */
+  private toProviderException(message: string, error: unknown): ProviderException {
+    if (error instanceof ProviderException) return error
+    const detail = error instanceof Error ? error.message : String(error)
+    const status = axios.isAxiosError(error) ? error.response?.status : undefined
+    const code = status === 401 || status === 403 ? 'AUTHENTICATION_FAILED' : 'REQUEST_FAILED'
+    return new ProviderException(`${message}: ${detail}`, this.providerName, code)
+  }
 }

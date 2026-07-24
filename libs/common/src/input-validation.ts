@@ -1,4 +1,3 @@
-
 /**
  * 입력값이 문자열인지 확인하고, 문자열 길이가 지정한 최소값과 최대값을 모두 포함하는 범위에 있는지 검증합니다.
  *
@@ -8,8 +7,8 @@
  * @returns 입력값이 문자열이고 길이가 `minLength` 이상 `maxLength` 이하이면 `true`, 그렇지 않으면 `false`입니다.
  */
 export function validateStringLength(input: string, minLength: number, maxLength: number): boolean {
-    if (typeof input !== 'string') return false
-    return input.length >= minLength && input.length <= maxLength
+  if (typeof input !== 'string') return false
+  return input.length >= minLength && input.length <= maxLength
 }
 
 /**
@@ -22,13 +21,13 @@ export function validateStringLength(input: string, minLength: number, maxLength
  * @returns 위험 가능성이 있는 문자열 pattern과 양끝 공백을 제거한 문자열입니다.
  */
 export function sanitizeString(input: string): string {
-    if (typeof input !== 'string') return ''
+  if (typeof input !== 'string') return ''
 
-    return input
-        .replace(/[<>]/g, '')
-        .replace(/javascript:/gi, '')
-        .replace(/on\w+=/gi, '')
-        .trim()
+  return input
+    .replace(/[<>]/g, '')
+    .replace(/javascript:/gi, '')
+    .replace(/on\w+=/gi, '')
+    .trim()
 }
 
 /**
@@ -42,18 +41,18 @@ export function sanitizeString(input: string): string {
  * @returns 두 값이 모두 유한한 숫자이고 각각의 좌표 범위 안에 있으면 `true`, 그렇지 않으면 `false`입니다.
  */
 export function validateCoordinates(lat: number, lng: number): boolean {
-    return (
-        typeof lat === 'number' &&
-        typeof lng === 'number' &&
-        lat >= -90 &&
-        lat <= 90 &&
-        lng >= -180 &&
-        lng <= 180 &&
-        !isNaN(lat) &&
-        !isNaN(lng) &&
-        isFinite(lat) &&
-        isFinite(lng)
-    )
+  return (
+    typeof lat === 'number' &&
+    typeof lng === 'number' &&
+    lat >= -90 &&
+    lat <= 90 &&
+    lng >= -180 &&
+    lng <= 180 &&
+    !isNaN(lat) &&
+    !isNaN(lng) &&
+    isFinite(lat) &&
+    isFinite(lng)
+  )
 }
 
 /**
@@ -66,13 +65,7 @@ export function validateCoordinates(lat: number, lng: number): boolean {
  * @returns 반경이 0m보다 크고 50,000m 이하인 유한한 숫자이면 `true`, 그렇지 않으면 `false`입니다.
  */
 export function validateRadius(radiusM: number): boolean {
-    return (
-        typeof radiusM === 'number' &&
-        radiusM > 0 &&
-        radiusM <= 50000 &&
-        !isNaN(radiusM) &&
-        isFinite(radiusM)
-    )
+  return typeof radiusM === 'number' && radiusM > 0 && radiusM <= 50000 && !isNaN(radiusM) && isFinite(radiusM)
 }
 
 /**
@@ -84,22 +77,29 @@ export function validateRadius(radiusM: number): boolean {
  * @param query 검증하고 정제할 장소 검색어입니다.
  * @returns 유효하면 `{ valid: true, sanitized }`, 유효하지 않으면 `{ valid: false, error }` 형식의 결과입니다.
  */
-export function validateSearchQuery(query: string): { valid: boolean; sanitized?: string; error?: string } {
-    if (typeof query !== 'string') {
-        return { valid: false, error: 'Query must be a string' }
+export function validateSearchQuery(query: string): {
+  valid: boolean
+  sanitized?: string
+  error?: string
+} {
+  if (typeof query !== 'string') {
+    return { valid: false, error: 'Query must be a string' }
+  }
+
+  if (!validateStringLength(query, 1, 100)) {
+    return {
+      valid: false,
+      error: 'Query length must be between 1 and 100 characters',
     }
+  }
 
-    if (!validateStringLength(query, 1, 100)) {
-        return { valid: false, error: 'Query length must be between 1 and 100 characters' }
-    }
+  const sanitized = sanitizeString(query)
 
-    const sanitized = sanitizeString(query)
+  if (!sanitized || sanitized.length === 0) {
+    return { valid: false, error: 'Query contains invalid characters' }
+  }
 
-    if (!sanitized || sanitized.length === 0) {
-        return { valid: false, error: 'Query contains invalid characters' }
-    }
-
-    return { valid: true, sanitized }
+  return { valid: true, sanitized }
 }
 
 /**
@@ -111,20 +111,27 @@ export function validateSearchQuery(query: string): { valid: boolean; sanitized?
  * @param address 검증하고 정제할 주소 문자열입니다.
  * @returns 유효하면 `{ valid: true, sanitized }`, 유효하지 않으면 `{ valid: false, error }` 형식의 결과입니다.
  */
-export function validateAddress(address: string): { valid: boolean; sanitized?: string; error?: string } {
-    if (typeof address !== 'string') {
-        return { valid: false, error: 'Address must be a string' }
+export function validateAddress(address: string): {
+  valid: boolean
+  sanitized?: string
+  error?: string
+} {
+  if (typeof address !== 'string') {
+    return { valid: false, error: 'Address must be a string' }
+  }
+
+  if (!validateStringLength(address, 1, 200)) {
+    return {
+      valid: false,
+      error: 'Address length must be between 1 and 200 characters',
     }
+  }
 
-    if (!validateStringLength(address, 1, 200)) {
-        return { valid: false, error: 'Address length must be between 1 and 200 characters' }
-    }
+  const sanitized = sanitizeString(address)
 
-    const sanitized = sanitizeString(address)
+  if (!sanitized || sanitized.length === 0) {
+    return { valid: false, error: 'Address contains invalid characters' }
+  }
 
-    if (!sanitized || sanitized.length === 0) {
-        return { valid: false, error: 'Address contains invalid characters' }
-    }
-
-    return { valid: true, sanitized }
+  return { valid: true, sanitized }
 }

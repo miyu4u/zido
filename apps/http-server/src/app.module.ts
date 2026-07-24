@@ -5,8 +5,8 @@ import { StreamableHttpController } from './transport/streamable-http.controller
 import { StreamableHttpSessionRegistry } from './transport/streamable-http-session.registry'
 
 @Module({
-    imports: [McpRuntimeModule],
-    controllers: [StreamableHttpController],
-    providers: [StreamableHttpSessionRegistry, McpExceptionFilter],
+  imports: [McpRuntimeModule],
+  controllers: [StreamableHttpController],
+  providers: [StreamableHttpSessionRegistry, McpExceptionFilter],
 })
 export class AppModule {}

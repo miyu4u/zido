@@ -100,5 +100,15 @@
       "^zido/mcp-runtime(|/.*)$": "<rootDir>/libs/mcp-runtime/src/$1",
       "^zido/place-domain(|/.*)$": "<rootDir>/libs/place-domain/src/$1"
     }
+  },
+  "prettier": {
+    "singleQuote": true,
+    "trailingComma": "all",
+    "arrowParens": "always",
+    "printWidth": 120,
+    "tabWidth": 2,
+    "useTabs": false,
+    "semi": false,
+    "bracketSpacing": true
   }
 }
