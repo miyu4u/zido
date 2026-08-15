@@ -1,0 +1,33 @@
+<!--
+  Sanitized KECO getChargerInfo fixture
+  This fixture is sanitized from the official v1.25 guide shape.
+  ServiceKey and live response data are intentionally absent.
+-->
+<response>
+  <header>
+    <resultCode>00</resultCode>
+    <resultMsg>OK</resultMsg>
+  </header>
+  <body>
+    <items>
+      <item>
+        <busiId>ME</busiId>
+        <statId>28260005</statId>
+        <chgerId>01</chgerId>
+        <statNm>환경부 종합청사 충전소</statNm>
+        <addr>인천광역시 서구 환경로 42</addr>
+        <lat>37.5665</lat>
+        <lng>126.9780</lng>
+        <useTime>24시간 이용가능</useTime>
+        <busiNm>환경부</busiNm>
+        <busiCall>1661-9408</busiCall>
+        <chgerType>01</chgerType>
+        <output>50</output>
+        <parkingFree>Y</parkingFree>
+      </item>
+    </items>
+    <numOfRows>9999</numOfRows>
+    <pageNo>1</pageNo>
+    <totalCount>1</totalCount>
+  </body>
+</response>

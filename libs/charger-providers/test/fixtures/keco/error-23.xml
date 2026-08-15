@@ -1,0 +1,12 @@
+<response>
+  <header>
+    <resultCode>23</resultCode>
+    <resultMsg>SERVICE KEY IS NOT REGISTERED ERROR</resultMsg>
+  </header>
+  <body>
+    <items/>
+    <numOfRows>0</numOfRows>
+    <pageNo>1</pageNo>
+    <totalCount>0</totalCount>
+  </body>
+</response>

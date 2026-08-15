@@ -1,0 +1,12 @@
+<response>
+  <header>
+    <resultCode>00</resultCode>
+    <resultMsg>OK</resultMsg>
+  </header>
+  <body>
+    <items/>
+    <numOfRows>-1</numOfRows>
+    <pageNo>0</pageNo>
+    <totalCount>invalid</totalCount>
+  </body>
+</response>

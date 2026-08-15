@@ -1,0 +1,17 @@
+<response>
+  <header>
+    <resultCode>00</resultCode>
+    <resultMsg>OK</resultMsg>
+  </header>
+  <body>
+    <items>
+      <item>
+        <busiId>ME</busiId>
+        <statNm>테스트 충전소</statNm>
+      </item>
+    </items>
+    <numOfRows>9999</numOfRows>
+    <pageNo>1</pageNo>
+    <totalCount>1</totalCount>
+  </body>
+</response>

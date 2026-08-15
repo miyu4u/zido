@@ -1,0 +1,12 @@
+<response>
+  <header>
+    <resultCode>22</resultCode>
+    <resultMsg>LIMITED NUMBER OF SERVICE REQUESTS EXCEEDS ERROR</resultMsg>
+  </header>
+  <body>
+    <items/>
+    <numOfRows>0</numOfRows>
+    <pageNo>1</pageNo>
+    <totalCount>0</totalCount>
+  </body>
+</response>

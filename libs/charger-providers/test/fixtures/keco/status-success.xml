@@ -1,0 +1,27 @@
+<response>
+  <header>
+    <resultCode>00</resultCode>
+    <resultMsg>OK</resultMsg>
+  </header>
+  <body>
+    <items>
+      <item>
+        <busiId>ME</busiId>
+        <statId>28260005</statId>
+        <chgerId>01</chgerId>
+        <stat>2</stat>
+        <statUpdDt>20190829121020</statUpdDt>
+      </item>
+      <item>
+        <busiId>ME</busiId>
+        <statId>28260005</statId>
+        <chgerId>02</chgerId>
+        <stat>3</stat>
+        <statUpdDt>20190829121500</statUpdDt>
+      </item>
+    </items>
+    <numOfRows>9999</numOfRows>
+    <pageNo>1</pageNo>
+    <totalCount>2</totalCount>
+  </body>
+</response>
