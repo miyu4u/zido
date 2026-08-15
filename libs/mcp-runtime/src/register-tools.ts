@@ -1,7 +1,15 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { Injectable } from '@nestjs/common'
-import { logger, validateAddress, validateCoordinates, validateRadius, validateSearchQuery } from 'zido/common'
+import {
+  McpException,
+  logger,
+  validateAddress,
+  validateCoordinates,
+  validateRadius,
+  validateSearchQuery,
+} from 'zido/common'
 import { PlaceService } from 'zido/place-domain'
+import { ChargerService } from 'zido/charger-domain'
 import { z } from 'zod'
 
 /**
@@ -16,7 +24,10 @@ export interface McpToolRegistrarServiceInterface {
 
 @Injectable()
 export class McpToolRegistrarService implements McpToolRegistrarServiceInterface {
-  constructor(private readonly placeService: PlaceService) {}
+  constructor(
+    private readonly placeService: PlaceService,
+    private readonly chargerService: ChargerService,
+  ) {}
 
   /**
    * 입력 검증과 오류 응답을 포함한 place tool handler 전체를 server에 등록합니다.
@@ -31,7 +42,7 @@ export class McpToolRegistrarService implements McpToolRegistrarServiceInterface
         }),
       },
       async (args) => {
-        logger.debug({ tool: 'place_resolve', args }, 'Tool call')
+        logger.debug({ tool: 'place_resolve' }, 'Tool call')
 
         try {
           // 입력 검증
@@ -59,14 +70,13 @@ export class McpToolRegistrarService implements McpToolRegistrarServiceInterface
               },
             ],
           }
-        } catch (error) {
-          logger.error({ tool: 'place_resolve', error }, 'Tool call failed')
-          const message = error instanceof Error ? error.message : String(error)
+        } catch {
+          logger.error({ tool: 'place_resolve' }, 'Tool call failed')
           return {
             content: [
               {
                 type: 'text',
-                text: `Error: ${message}`,
+                text: 'Error: Tool request failed',
               },
             ],
             isError: true,
@@ -91,7 +101,7 @@ export class McpToolRegistrarService implements McpToolRegistrarServiceInterface
         }),
       },
       async (args) => {
-        logger.debug({ tool: 'place_search_nearby', args }, 'Tool call')
+        logger.debug({ tool: 'place_search_nearby' }, 'Tool call')
 
         try {
           // 입력 검증
@@ -145,14 +155,13 @@ export class McpToolRegistrarService implements McpToolRegistrarServiceInterface
               },
             ],
           }
-        } catch (error) {
-          logger.error({ tool: 'place_search_nearby', error }, 'Tool call failed')
-          const message = error instanceof Error ? error.message : String(error)
+        } catch {
+          logger.error({ tool: 'place_search_nearby' }, 'Tool call failed')
           return {
             content: [
               {
                 type: 'text',
-                text: `Error: ${message}`,
+                text: 'Error: Tool request failed',
               },
             ],
             isError: true,
@@ -170,7 +179,7 @@ export class McpToolRegistrarService implements McpToolRegistrarServiceInterface
         }),
       },
       async (args) => {
-        logger.debug({ tool: 'place_geocode', args }, 'Tool call')
+        logger.debug({ tool: 'place_geocode' }, 'Tool call')
 
         try {
           // 입력 검증
@@ -198,14 +207,13 @@ export class McpToolRegistrarService implements McpToolRegistrarServiceInterface
               },
             ],
           }
-        } catch (error) {
-          logger.error({ tool: 'place_geocode', error }, 'Tool call failed')
-          const message = error instanceof Error ? error.message : String(error)
+        } catch {
+          logger.error({ tool: 'place_geocode' }, 'Tool call failed')
           return {
             content: [
               {
                 type: 'text',
-                text: `Error: ${message}`,
+                text: 'Error: Tool request failed',
               },
             ],
             isError: true,
@@ -214,6 +222,83 @@ export class McpToolRegistrarService implements McpToolRegistrarServiceInterface
       },
     )
 
+    server.registerTool(
+      'charger_search_nearby',
+      {
+        description: '캐시된 충전소 snapshot에서 위치와 freshness-aware 상태를 조회합니다',
+        inputSchema: z.object({
+          lat: z.number().min(-90).max(90),
+          lng: z.number().min(-180).max(180),
+          radiusM: z.number().int().positive().max(50000).optional(),
+          status: z.enum(['AVAILABLE', 'CHARGING', 'UNAVAILABLE', 'MAINTENANCE', 'UNKNOWN']).optional(),
+          freshness: z.enum(['FRESH', 'STALE', 'UNKNOWN', 'ANY']).optional(),
+          source: z.string().optional(),
+          limit: z.number().int().positive().max(100).optional(),
+          cursor: z.string().optional(),
+        }),
+      },
+      async (args) => {
+        try {
+          const result = await this.chargerService.searchNearby(args)
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          }
+        } catch (error) {
+          return this.chargerErrorResult(error)
+        }
+      },
+    )
+
+    server.registerTool(
+      'charger_status',
+      {
+        description: 'opaque stationId로 충전기 상태와 freshness를 조회합니다',
+        inputSchema: z.object({
+          stationId: z.string().min(1),
+          chargerId: z.string().min(1).optional(),
+          source: z.string().optional(),
+        }),
+      },
+      async (args) => {
+        try {
+          const result = await this.chargerService.getStatus(args.stationId, args.chargerId)
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          }
+        } catch (error) {
+          return this.chargerErrorResult(error)
+        }
+      },
+    )
+
     logger.info('Tools registered')
+  }
+
+  private chargerErrorResult(error: unknown): {
+    content: [{ type: 'text'; text: string }]
+    isError: true
+  } {
+    const code = error instanceof McpException ? error.code : 'INTERNAL_ERROR'
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            error: {
+              code,
+              message:
+                code === 'SNAPSHOT_UNAVAILABLE'
+                  ? 'Charging snapshot is temporarily unavailable'
+                  : code === 'RATE_LIMITED'
+                    ? 'Charging provider rate limit reached'
+                    : code === 'NOT_FOUND'
+                      ? 'The requested charging station was not found'
+                      : 'Charging request failed',
+            },
+          }),
+        },
+      ],
+      isError: true,
+    }
   }
 }
