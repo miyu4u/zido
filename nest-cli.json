@@ -71,6 +71,33 @@
       "compilerOptions": {
         "tsConfigPath": "libs/place-domain/tsconfig.lib.json"
       }
+    },
+    "charger-domain": {
+      "type": "library",
+      "root": "libs/charger-domain",
+      "entryFile": "index",
+      "sourceRoot": "libs/charger-domain/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/charger-domain/tsconfig.lib.json"
+      }
+    },
+    "charger-providers": {
+      "type": "library",
+      "root": "libs/charger-providers",
+      "entryFile": "index",
+      "sourceRoot": "libs/charger-providers/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/charger-providers/tsconfig.lib.json"
+      }
+    },
+    "charger-storage": {
+      "type": "library",
+      "root": "libs/charger-storage",
+      "entryFile": "index",
+      "sourceRoot": "libs/charger-storage/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/charger-storage/tsconfig.lib.json"
+      }
     }
   }
 }

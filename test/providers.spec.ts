@@ -3,13 +3,18 @@ import { GoogleVendor } from '../libs/map-providers/src/google/google.vendor'
 import { KakaoVendor } from '../libs/map-providers/src/kakao/kakao.vendor'
 import { NaverVendor } from '../libs/map-providers/src/naver/naver.vendor'
 
-if (!process.env.KAKAO_REST_KEY && !process.env.NAVER_CLIENT_ID && !process.env.GOOGLE_API_KEY) {
+const liveProviderTestsEnabled = process.env.RUN_LIVE_PROVIDER_TESTS === '1'
+
+if (
+    !liveProviderTestsEnabled ||
+    (!process.env.KAKAO_REST_KEY && !process.env.NAVER_CLIENT_ID && !process.env.GOOGLE_API_KEY)
+) {
     describe('live provider opt-in', () => {
         it.skip('API key가 설정된 provider만 실행한다', () => undefined)
     })
 }
 
-if (process.env.KAKAO_REST_KEY) {
+if (liveProviderTestsEnabled && process.env.KAKAO_REST_KEY) {
     describe('Kakao live provider', () => {
     const provider = new KakaoVendor({ restKey: process.env.KAKAO_REST_KEY || '' })
 
@@ -22,7 +27,7 @@ if (process.env.KAKAO_REST_KEY) {
     })
 }
 
-if (process.env.NAVER_CLIENT_ID && process.env.NAVER_CLIENT_SECRET) {
+if (liveProviderTestsEnabled && process.env.NAVER_CLIENT_ID && process.env.NAVER_CLIENT_SECRET) {
     describe('Naver live provider', () => {
     const provider = new NaverVendor({
         clientId: process.env.NAVER_CLIENT_ID || '',
@@ -38,7 +43,7 @@ if (process.env.NAVER_CLIENT_ID && process.env.NAVER_CLIENT_SECRET) {
     })
 }
 
-if (process.env.GOOGLE_API_KEY) {
+if (liveProviderTestsEnabled && process.env.GOOGLE_API_KEY) {
     describe('Google live provider', () => {
     const provider = new GoogleVendor({ apiKey: process.env.GOOGLE_API_KEY || '' })
 

@@ -58,9 +58,12 @@ libs/mcp-runtime
 | `libs/mcp-runtime` | `McpServer` 생성, capability 선언, tool 등록 |
 | `libs/place-domain` | 장소 검색, geocoding, 거리 계산, domain orchestration |
 | `libs/map-providers` | provider adapter와 fallback routing |
+| `libs/charger-domain` | 충전소 검색, snapshot cache-aside, freshness/effective status |
+| `libs/charger-providers` | KECO read-only HTTPS/XML adapter와 resultCode 분류 |
+| `libs/charger-storage` | 단일 노드 SQLite snapshot schema와 transactional upsert |
 | `libs/common` | 환경변수, validation, logger, exception |
 
-`McpRuntimeModule`은 `PlaceDomainModule`을 직접 import합니다. 따라서 `mcp-runtime`은 transport와는 분리되어 있지만 Zido 장소 domain에 결합된 application-oriented runtime입니다.
+`McpRuntimeModule`은 `PlaceDomainModule`과 `ChargerDomainModule`을 직접 import합니다. 따라서 `mcp-runtime`은 transport와는 분리되어 있지만 현재 Zido의 장소·충전 domain을 공통 MCP surface로 구성하는 application-oriented runtime입니다.
 
 ## 3. 현재 project structure
 
@@ -92,6 +95,9 @@ libs/
 ├── common/
 ├── map-providers/
 ├── place-domain/
+├── charger-domain/
+├── charger-providers/
+├── charger-storage/
 └── mcp-runtime/
 ```
 
@@ -103,6 +109,10 @@ http-server ───┐
 stdio-server ──┘
 
 cli ─────────────── place-domain ── map-providers
+
+http-server ─────── charging REST ── charger-domain ──┬─ charger-storage (SQLite)
+                                                       └─ charger-providers (KECO)
+mcp-runtime ─────── charger_* tools ── charger-domain
 ```
 
 다음 의존성은 금지합니다.
@@ -112,6 +122,8 @@ cli ─────────────── place-domain ── map-provid
 - CLI에서 HTTP controller import
 - stdio application에서 Express 또는 HTTP transport import
 - `mcp-runtime`에서 `process.argv`, `app.listen`, HTTP `Request` 또는 `Response` 사용
+- `charger-providers`에서 `map-providers` 또는 `place-domain` private 구현 import
+- 충전 provider가 ServiceKey를 cache key, metric tag, log/error payload에 기록
 
 ## 4. Library ownership
 
@@ -155,6 +167,21 @@ await server.connect(transport)
 - 거리 계산
 - 중복 제거
 - provider 결과 orchestration
+
+### `charger-domain`, `charger-providers`, `charger-storage`
+
+충전 기능은 지도 `Provider` 계약과 분리된 세 경계로 소유합니다.
+
+- `charger-domain`: 지역/반경 query key, cache-aside single-flight, `FRESH`/`STALE`/`UNKNOWN`,
+  effective status, stale fallback, HTTP/MCP 공통 결과
+- `charger-providers`: KECO `getChargerInfo`/`getChargerStatus` 요청, XML pagination,
+  v1.25 필드 검증과 resultCode 오류 분류. ServiceKey는 호출 직전에만 사용합니다.
+- `charger-storage`: Node 22 `node:sqlite` 기반 local file snapshot. station info와 charger
+  status upsert를 분리하고 `(source, operatorId, stationId, chargerId)`를 상태 키로 사용합니다.
+
+이 MVP는 cache-aside 요청 수집만 지원하며 scheduler, collector worker, 다중 replica용 shared
+SQLite는 지원하지 않습니다. 운영 설정은 `CHARGER_SQLITE_PATH`, `CHARGER_CACHE_TTL_MS`,
+`CHARGER_PROVIDER_TIMEOUT_MS`, `CHARGER_PROVIDER_MAX_RETRIES`, `KECO_SERVICE_KEY`로 주입합니다.
 
 MCP tool과 CLI command는 이 service를 각자의 boundary에 맞게 호출합니다.
 

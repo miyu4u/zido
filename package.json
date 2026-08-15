@@ -98,7 +98,10 @@
       "^zido/common(|/.*)$": "<rootDir>/libs/common/src/$1",
       "^zido/map-providers(|/.*)$": "<rootDir>/libs/map-providers/src/$1",
       "^zido/mcp-runtime(|/.*)$": "<rootDir>/libs/mcp-runtime/src/$1",
-      "^zido/place-domain(|/.*)$": "<rootDir>/libs/place-domain/src/$1"
+      "^zido/place-domain(|/.*)$": "<rootDir>/libs/place-domain/src/$1",
+      "^zido/charger-domain(|/.*)$": "<rootDir>/libs/charger-domain/src/$1",
+      "^zido/charger-providers(|/.*)$": "<rootDir>/libs/charger-providers/src/$1",
+      "^zido/charger-storage(|/.*)$": "<rootDir>/libs/charger-storage/src/$1"
     }
   },
   "prettier": {

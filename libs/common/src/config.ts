@@ -29,4 +29,33 @@ export const config = {
       apiKey: process.env.GOOGLE_API_KEY || '',
     },
   },
+  /**
+   * 충전 상태 cache-aside 수집과 로컬 snapshot 저장 설정이다.
+   */
+  charger: {
+    sqlitePath: process.env.CHARGER_SQLITE_PATH || './.data/charger-snapshots.sqlite',
+    ttlMs: parsePositiveInteger(process.env.CHARGER_CACHE_TTL_MS, 300_000),
+    timeoutMs: parsePositiveInteger(process.env.CHARGER_PROVIDER_TIMEOUT_MS, 8_000),
+    maxRetries: parseNonNegativeInteger(process.env.CHARGER_PROVIDER_MAX_RETRIES, 1),
+    periodMinutes: parseBoundedInteger(process.env.CHARGER_STATUS_PERIOD_MINUTES, 5, 1, 10),
+    regionCode: process.env.CHARGER_REGION_CODE || undefined,
+    source: 'keco' as const,
+    endpoint: process.env.KECO_API_ENDPOINT || 'https://apis.data.go.kr/B552584/EvCharger',
+    serviceKey: process.env.KECO_SERVICE_KEY || '',
+  },
 } as const
+
+function parsePositiveInteger(value: string | undefined, fallback: number): number {
+  const parsed = Number(value)
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback
+}
+
+function parseNonNegativeInteger(value: string | undefined, fallback: number): number {
+  const parsed = Number(value)
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : fallback
+}
+
+function parseBoundedInteger(value: string | undefined, fallback: number, minimum: number, maximum: number): number {
+  const parsed = Number(value)
+  return Number.isSafeInteger(parsed) && parsed >= minimum && parsed <= maximum ? parsed : fallback
+}

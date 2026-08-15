@@ -47,6 +47,24 @@
       ],
       "zido/place-domain/*": [
         "./libs/place-domain/src/*"
+      ],
+      "zido/charger-domain": [
+        "./libs/charger-domain/src"
+      ],
+      "zido/charger-domain/*": [
+        "./libs/charger-domain/src/*"
+      ],
+      "zido/charger-providers": [
+        "./libs/charger-providers/src"
+      ],
+      "zido/charger-providers/*": [
+        "./libs/charger-providers/src/*"
+      ],
+      "zido/charger-storage": [
+        "./libs/charger-storage/src"
+      ],
+      "zido/charger-storage/*": [
+        "./libs/charger-storage/src/*"
       ]
     }
   }

@@ -17,6 +17,9 @@ module.exports = function configureWebpack(options) {
                 'zido/map-providers': path.resolve(__dirname, 'libs/map-providers/src'),
                 'zido/mcp-runtime': path.resolve(__dirname, 'libs/mcp-runtime/src'),
                 'zido/place-domain': path.resolve(__dirname, 'libs/place-domain/src'),
+                'zido/charger-domain': path.resolve(__dirname, 'libs/charger-domain/src'),
+                'zido/charger-providers': path.resolve(__dirname, 'libs/charger-providers/src'),
+                'zido/charger-storage': path.resolve(__dirname, 'libs/charger-storage/src'),
             },
         },
     }
