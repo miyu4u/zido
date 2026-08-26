@@ -26,7 +26,8 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:providers": "jest --runInBand test/providers.spec.ts"
+    "test:e2e": "jest --runInBand test/e2e --testPathIgnorePatterns=test/e2e/live --passWithNoTests",
+    "test:e2e:live": "jest --runInBand test/e2e/live"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
