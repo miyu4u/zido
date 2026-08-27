@@ -9,7 +9,7 @@ import {
   validateSearchQuery,
 } from 'zido/common'
 import { PlaceService } from 'zido/place-domain'
-import { ChargerService } from 'zido/charger-domain'
+import { ChargerService, CollectionScopeInputSchema } from 'zido/charger-domain'
 import { z } from 'zod'
 
 /**
@@ -235,11 +235,35 @@ export class McpToolRegistrarService implements McpToolRegistrarServiceInterface
           source: z.string().optional(),
           limit: z.number().int().positive().max(100).optional(),
           cursor: z.string().optional(),
+          scope: CollectionScopeInputSchema.optional(),
         }),
       },
       async (args) => {
         try {
           const result = await this.chargerService.searchNearby(args)
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          }
+        } catch (error) {
+          return this.chargerErrorResult(error)
+        }
+      },
+    )
+
+    server.registerTool(
+      'charger_scope_preview',
+      {
+        description: 'provider 호출 없이 충전소 collection scope와 예상 region 수를 확인합니다',
+        inputSchema: z.object({
+          lat: z.number().min(-90).max(90),
+          lng: z.number().min(-180).max(180),
+          radiusM: z.number().int().positive().max(50000).optional(),
+          scope: CollectionScopeInputSchema.optional(),
+        }),
+      },
+      async (args) => {
+        try {
+          const result = await this.chargerService.previewScope(args)
           return {
             content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
           }
@@ -279,6 +303,10 @@ export class McpToolRegistrarService implements McpToolRegistrarServiceInterface
     isError: true
   } {
     const code = error instanceof McpException ? error.code : 'INTERNAL_ERROR'
+    const scope =
+      typeof error === 'object' && error !== null && 'scope' in error
+        ? (error as { scope?: unknown }).scope
+        : undefined
     return {
       content: [
         {
@@ -289,12 +317,17 @@ export class McpToolRegistrarService implements McpToolRegistrarServiceInterface
               message:
                 code === 'SNAPSHOT_UNAVAILABLE'
                   ? 'Charging snapshot is temporarily unavailable'
+                  : code === 'COLLECTION_SCOPE_REQUIRED'
+                    ? 'Charging collection scope is required'
+                    : code === 'NATIONWIDE_NOT_ALLOWED'
+                      ? 'Nationwide charging collection is not allowed'
                   : code === 'RATE_LIMITED'
                     ? 'Charging provider rate limit reached'
                     : code === 'NOT_FOUND'
                       ? 'The requested charging station was not found'
                       : 'Charging request failed',
             },
+            ...(scope === undefined ? {} : { scope }),
           }),
         },
       ],

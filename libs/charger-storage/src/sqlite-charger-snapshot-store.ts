@@ -390,7 +390,19 @@ export class SqliteChargerSnapshotStore extends ChargerSnapshotStoreBase impleme
     const metaJson = input.metadata ? JSON.stringify(input.metadata) : null
 
     this.runTransaction(() => {
-      let rejectedChargerUpdate = false
+      for (const ch of chargers) {
+        if (!ch.source || !ch.stationId || !ch.chargerId) {
+          throw new ChargerStorageError(
+            'CHARGER_STORAGE_INVALID_DATA',
+            'writeQuerySnapshot charger items require source, stationId, and chargerId',
+          )
+        }
+        const chKey = buildChargerKey(ch.source, ch.operatorId, ch.stationId, ch.chargerId)
+        const observedAt = ch.observedAt ?? input.observedAt
+        if (!this.shouldAcceptChargerUpdate(chKey, ch.statusUpdatedAt, observedAt)) {
+          return
+        }
+      }
 
       // 1. Upsert stations
       for (const st of stations) {
@@ -423,19 +435,9 @@ export class SqliteChargerSnapshotStore extends ChargerSnapshotStoreBase impleme
 
       // 2. Upsert chargers
       for (const ch of chargers) {
-        if (!ch.source || !ch.stationId || !ch.chargerId) {
-          throw new ChargerStorageError(
-            'CHARGER_STORAGE_INVALID_DATA',
-            'writeQuerySnapshot charger items require source, stationId, and chargerId',
-          )
-        }
         const chKey = buildChargerKey(ch.source, ch.operatorId, ch.stationId, ch.chargerId)
         const stKey = buildStationKey(ch.source, ch.operatorId, ch.stationId)
         const observedAt = ch.observedAt ?? input.observedAt
-        if (!this.shouldAcceptChargerUpdate(chKey, ch.statusUpdatedAt, observedAt)) {
-          rejectedChargerUpdate = true
-          continue
-        }
         this.stmtUpsertCharger.run(
           chKey,
           stKey,
@@ -453,11 +455,6 @@ export class SqliteChargerSnapshotStore extends ChargerSnapshotStoreBase impleme
           nowIso,
         )
       }
-
-      // A mixed or wholly older refresh must not advance query TTL or replace
-      // query membership while the effective charger rows remain unchanged.
-      // The next cache-aside read will retry against the provider instead.
-      if (chargers.length > 0 && rejectedChargerUpdate) return
 
       // 3. Upsert query cache metadata
       this.stmtUpsertQueryCache.run(input.queryKey, input.source, itemCount, input.observedAt, metaJson, nowIso, nowIso)
@@ -711,6 +708,9 @@ export class SqliteChargerSnapshotStore extends ChargerSnapshotStoreBase impleme
         observedAt: row.observed_at,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
+        metadata: row.metadata_json
+          ? (JSON.parse(row.metadata_json) as Record<string, unknown>)
+          : null,
       }
     } catch (err) {
       throw toChargerStorageError(err, `Failed to get query cache metadata for key: ${queryKey}`)

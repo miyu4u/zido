@@ -1,6 +1,6 @@
 export * from './contracts'
 export * from './freshness'
 export * from './source-policy'
-export * from './refresh-coordinator'
+export * from './collection-scope'
 export * from './charger-service'
 export * from './charger-domain.module'

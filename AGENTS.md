@@ -13,7 +13,7 @@
 
 ### PURPOSE
 
-Zido는 Nest CLI workspace 기반의 MCP(Model Context Protocol) server입니다. 여러 지도 API provider를 공통 interface로 감싸 장소 검색과 geocoding 기능을 제공하며, `stdio`와 HTTP transport를 통해 MCP client에 연결됩니다.
+Zido는 Nest CLI workspace 기반의 MCP(Model Context Protocol) server입니다. 여러 지도 API provider를 공통 interface로 감싸 장소 검색과 geocoding 기능을 제공하고, KECO 충전소 정보와 상태를 수집해 snapshot으로 제공하며, `stdio`와 HTTP transport를 통해 MCP client에 연결됩니다.
 
 이 문서는 Zido의 runtime ownership, directory structure, 실행 명령어와 변경 후 verification 기준을 정의합니다. 구현 시에는 configuration, provider fallback, place domain, MCP tool registration의 경계를 유지하고, 운영자가 재현할 수 있는 명령어와 검증 절차를 우선합니다.
 
@@ -29,6 +29,12 @@ Zido는 Nest CLI workspace 기반의 MCP(Model Context Protocol) server입니다
     - `kakao` : Kakao map
     - `naver` : naver map
     - `google` : google map
+  - `charger-providers` : KECO 외부 연동 경계
+    - `keco/types` : Zod schema와 inferred payload type의 공개 contract
+    - `keco/keco-api.service.ts` : URL, credential, timeout, HTTP/network 오류를 소유하는 connection layer
+    - `keco/keco.service.ts` : query validation, XML/result 가공, pagination, telemetry를 소유하는 provider capability
+  - `charger-domain` : collection scope schema/resolver, refresh pagination, retry, freshness 판정과 snapshot mapping
+  - `charger-storage` : SQLite charger snapshot 저장과 조회
   - `mcp-runtime` : mcp shim module
   - `place-domain` : place related codes
 - `test`: test code
@@ -37,12 +43,17 @@ Zido는 Nest CLI workspace 기반의 MCP(Model Context Protocol) server입니다
   - `fixtures`: test fixture
   - `utils`: test util function
 
-> 대표 Flow : apps > (mcp-runtime) > place-domain > map-providers
+> 장소 Flow : apps > (mcp-runtime) > place-domain > map-providers
+>
+> 충전소 Flow : apps > (mcp-runtime) > charger-domain > charger-providers > charger-storage
 
 #### STRUCTURE GUIDE
 
 - 구조는 stale해지기 쉬우므로 변경이 생기거나 관측상 변경이 있는 경우 STRUCTURE 섹션을 갱신해야합니다.
 - `common` library는 `config.ts`를 configuration의 단일 source of truth로 사용하며 Nest `ConfigurationService`와 `ConfigurationModule`을 두지 않습니다.
+- KECO credential, endpoint, timeout은 각각 `KECO_API_KEY`, `KECO_API_URL`, `KECO_API_TIMEOUT`으로 설정하고 URL과 timeout 기본값은 `config.ts`에서만 결정합니다.
+- 충전소 기본 지역은 `CHARGER_DEFAULT_REGION_CODES`의 comma-separated set으로 설정하며, legacy singular key를 읽거나 alias하지 않습니다.
+- 전국 충전소 collection은 `CHARGER_ALLOW_NATIONWIDE_COLLECTION=true`와 MCP/HTTP/CLI 호출별 acknowledgement가 모두 있을 때만 허용합니다.
 - `test/e2e`의 e2e test 파일명은 `*.e2e.spec.ts`를 사용합니다.
 
 ## GUIDANCE

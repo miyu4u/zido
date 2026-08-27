@@ -10,12 +10,25 @@ import {
   toEffectiveStatus,
 } from './freshness'
 import { RefreshCoordinator, RefreshOptions } from './refresh-coordinator'
+import {
+  CollectionScopeInputSchema,
+  DeterministicLocalBoundaryResolver,
+  type CollectionScopeInput,
+  type CollectionScopeMetadata,
+  type RegionScopeResolver,
+} from './collection-scope'
 
 export interface GetSnapshotOptions {
   /** Cache TTL in milliseconds. */
   ttlMs: number
   /** Optional KECO zcode (2-digit province code). */
   zcode?: string
+  /** 정규화된 KECO 시·도 code 집합이다. */
+  regionCodes?: string[]
+  /** 이중 gate를 통과한 명시적 전국 수집 여부다. */
+  nationwide?: true
+  /** Public direct call에서도 요구되는 명시적 전국 수집 승인이다. */
+  acknowledgeNationwide?: true
   /** Optional KECO status update window in minutes. */
   periodMinutes?: number
   /** Provider source — currently only 'keco' is supported. */
@@ -24,6 +37,8 @@ export interface GetSnapshotOptions {
   maxRetries?: number
   /** Provider refresh timeout in milliseconds. */
   refreshTimeoutMs?: number
+  /** Snapshot에 함께 기록할 collection scope와 boundary provenance다. */
+  scopeMetadata?: CollectionScopeMetadata
 }
 
 export type ChargerStatusFilter = 'AVAILABLE' | 'CHARGING' | 'UNAVAILABLE' | 'MAINTENANCE' | 'UNKNOWN'
@@ -38,6 +53,8 @@ export interface ChargerSearchQuery {
   limit?: number
   cursor?: string
   now?: string
+  /** 좌표 검색과 분리된 collection scope 의도다. */
+  scope?: CollectionScopeInput
 }
 
 export interface ChargingStationResult extends ChargerStationRecord {
@@ -58,6 +75,8 @@ export interface ChargingSearchResult {
   matchedCount: number
   dataAsOf: string | null
   sourceSummary: ChargingApiSourceSummary[]
+  /** 실제 판정·수집에 사용한 범위와 coverage 근거다. */
+  scope: CollectionScopeMetadata
 }
 
 /**
@@ -82,6 +101,8 @@ export class ChargerService {
   constructor(
     private readonly store: ChargerSnapshotStore,
     private readonly coordinator: RefreshCoordinator,
+    private readonly scopeResolver: RegionScopeResolver = new DeterministicLocalBoundaryResolver(),
+    private readonly allowNationwideCollection: boolean = config.charger.allowNationwideCollection,
   ) {}
 
   /**
@@ -89,7 +110,21 @@ export class ChargerService {
    * when the cached copy is absent or stale.
    */
   async getSnapshot(queryKey: string, options: GetSnapshotOptions): Promise<QuerySnapshotBundle> {
-    const { ttlMs, zcode, periodMinutes, source = 'keco', maxRetries, refreshTimeoutMs } = options
+    const {
+      ttlMs,
+      zcode,
+      regionCodes,
+      nationwide,
+      acknowledgeNationwide,
+      periodMinutes,
+      source = 'keco',
+      maxRetries,
+      refreshTimeoutMs,
+      scopeMetadata,
+    } = options
+    if (nationwide === true && (!this.allowNationwideCollection || acknowledgeNationwide !== true)) {
+      throw new McpException('Nationwide collection is not allowed', 'NATIONWIDE_NOT_ALLOWED', 403)
+    }
 
     // --- 1. Try cache ---
     const cached = await this.store.readQuerySnapshot(queryKey, { ttlMs })
@@ -102,6 +137,9 @@ export class ChargerService {
       queryKey,
       source,
       zcode,
+      regionCodes,
+      nationwide,
+      metadata: scopeMetadata,
       periodMinutes,
       ttlMs,
       maxRetries,
@@ -178,25 +216,35 @@ export class ChargerService {
     }
     const source = query.source ?? 'keco'
     if (source !== 'keco') throw new McpException('Unsupported source', 'INVALID_ARGUMENT', 400)
-    const zcode = config.charger?.regionCode
     const periodMinutes = config.charger?.periodMinutes ?? 5
     const ttlMs = config.charger?.ttlMs ?? 300_000
+    const scope = await this.resolveCollectionScope(query, radiusM)
+    const scopeIdentity =
+      scope.mode === 'NATIONWIDE' ? 'nationwide' : scope.regionCodes.slice().sort().join(',')
     const queryKey = JSON.stringify({
       source,
-      lat: Number(query.lat.toFixed(6)),
-      lng: Number(query.lng.toFixed(6)),
-      radiusM,
-      zcode,
+      scope: scopeIdentity,
       periodMinutes,
+      boundaryVersion: scope.provenance.version,
+      boundarySource: scope.provenance.source,
+      boundaryEffectiveDate: scope.provenance.effectiveDate,
     })
-    const snapshot = await this.getSnapshot(queryKey, {
-      ttlMs,
-      maxRetries: config.charger?.maxRetries ?? 1,
-      refreshTimeoutMs: config.charger?.timeoutMs ?? 8_000,
-      source: 'keco',
-      zcode,
-      periodMinutes,
-    })
+    const cached = await this.store.readQuerySnapshot(queryKey, { ttlMs })
+    const collectionTriggered = cached === null || cached.isStale
+    const snapshot =
+      cached !== null && !cached.isStale
+        ? this.recalculateFreshness(cached, ttlMs)
+        : await this.getSnapshot(queryKey, {
+            ttlMs,
+            maxRetries: config.charger?.maxRetries ?? 1,
+            refreshTimeoutMs: config.charger?.timeoutMs ?? 8_000,
+            source: 'keco',
+            regionCodes: scope.mode === 'NATIONWIDE' ? undefined : scope.regionCodes,
+            nationwide: scope.mode === 'NATIONWIDE' ? true : undefined,
+            acknowledgeNationwide: scope.mode === 'NATIONWIDE' ? true : undefined,
+            periodMinutes,
+            scopeMetadata: scope,
+          })
     const items = snapshot.stations
       .map((station) => {
         const distanceM = station.location
@@ -243,7 +291,29 @@ export class ChargerService {
           itemCount: snapshot.itemCount,
         },
       ],
+      scope: { ...scope, collectionTriggered },
     }
+  }
+
+  /**
+   * Provider를 호출하지 않고 요청의 collection scope와 예상 region 수를 판정한다.
+   */
+  async previewScope(query: Pick<ChargerSearchQuery, 'lat' | 'lng' | 'radiusM' | 'scope'>): Promise<CollectionScopeMetadata> {
+    const radiusM = query.radiusM ?? 3_000
+    if (
+      !Number.isFinite(query.lat) ||
+      query.lat < -90 ||
+      query.lat > 90 ||
+      !Number.isFinite(query.lng) ||
+      query.lng < -180 ||
+      query.lng > 180 ||
+      !Number.isInteger(radiusM) ||
+      radiusM <= 0 ||
+      radiusM > 50_000
+    ) {
+      throw new McpException('Invalid scope preview input', 'INVALID_ARGUMENT', 400)
+    }
+    return this.resolveCollectionScope(query, radiusM)
   }
 
   async getStatus(stationId: string, chargerId?: string): Promise<ChargerStationRecord> {
@@ -288,6 +358,98 @@ export class ChargerService {
     if (chargers.some((charger) => charger.freshness === 'FRESH')) return 'FRESH'
     if (chargers.some((charger) => charger.freshness === 'STALE')) return 'STALE'
     return 'UNKNOWN'
+  }
+
+  /**
+   * 모든 transport가 공유하는 fail-closed 범위 판정과 nationwide gate를 적용한다.
+   */
+  private async resolveCollectionScope(
+    query: Pick<ChargerSearchQuery, 'lat' | 'lng' | 'scope'>,
+    radiusM: number,
+  ): Promise<CollectionScopeMetadata> {
+    const parsedIntent = CollectionScopeInputSchema.safeParse(query.scope ?? { mode: 'AUTO' })
+    if (!parsedIntent.success) {
+      throw new McpException(
+        parsedIntent.error.issues[0]?.message ?? 'Invalid collection scope',
+        'INVALID_ARGUMENT',
+        400,
+      )
+    }
+    const intent = parsedIntent.data
+    let autoResult
+    try {
+      autoResult = await this.scopeResolver.resolveScope({ lat: query.lat, lng: query.lng, radiusM })
+    } catch {
+      autoResult = {
+        coverage: 'UNRESOLVED' as const,
+        regionCodes: [],
+        provenance: {
+          version: 'unresolved',
+          source: 'boundary-resolution-failed',
+          effectiveDate: 'unknown',
+        },
+        unresolvedReason: 'BOUNDARY_RESOLUTION_FAILED',
+      }
+    }
+
+    if (intent.mode === 'NATIONWIDE') {
+      if (!this.allowNationwideCollection || intent.acknowledgeNationwide !== true) {
+        throw new McpException('Nationwide collection is not allowed', 'NATIONWIDE_NOT_ALLOWED', 403)
+      }
+      return {
+        mode: 'NATIONWIDE',
+        coverage: 'COMPLETE',
+        regionCodes: [],
+        scopeSource: 'NATIONWIDE',
+        collectionTriggered: false,
+        provenance: autoResult.provenance,
+      }
+    }
+
+    if (intent.mode === 'REGIONS') {
+      const regionCodes = Array.from(new Set(intent.regionCodes)).sort()
+      const complete =
+        autoResult.coverage === 'COMPLETE' &&
+        autoResult.regionCodes.every((regionCode) => regionCodes.includes(regionCode))
+      return {
+        mode: 'REGIONS',
+        coverage: complete ? 'COMPLETE' : 'PARTIAL',
+        regionCodes,
+        scopeSource: 'REGIONS',
+        collectionTriggered: false,
+        provenance: autoResult.provenance,
+        candidateRegions: autoResult.regionCodes,
+        unresolvedReason: autoResult.unresolvedReason,
+      }
+    }
+
+    if (autoResult.coverage !== 'COMPLETE' || autoResult.regionCodes.length === 0) {
+      const error = new McpException('Collection scope is required', 'COLLECTION_SCOPE_REQUIRED', 409)
+      Object.assign(error, {
+        scope: {
+          mode: 'AUTO',
+          coverage: 'UNRESOLVED',
+          regionCodes: [],
+          scopeSource: 'AUTO',
+          collectionTriggered: false,
+          provenance: autoResult.provenance,
+          candidateRegions: Array.from(
+            new Set([...(autoResult.candidateRegions ?? []), ...config.charger.defaultRegionCodes]),
+          ).sort(),
+          unresolvedReason: autoResult.unresolvedReason,
+        } satisfies CollectionScopeMetadata,
+      })
+      throw error
+    }
+
+    return {
+      mode: 'AUTO',
+      coverage: 'COMPLETE',
+      regionCodes: autoResult.regionCodes.slice().sort(),
+      scopeSource: 'AUTO',
+      collectionTriggered: false,
+      provenance: autoResult.provenance,
+    }
   }
 
   /**

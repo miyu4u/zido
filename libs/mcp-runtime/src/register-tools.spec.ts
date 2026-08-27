@@ -22,6 +22,14 @@ describe('McpToolRegistrarService charger tools', () => {
         dataAsOf: null,
         sourceSummary: [],
       }),
+      previewScope: jest.fn().mockResolvedValue({
+        mode: 'AUTO',
+        coverage: 'COMPLETE',
+        regionCodes: ['11'],
+        scopeSource: 'AUTO',
+        collectionTriggered: false,
+        provenance: { version: 'test', source: 'fixture', effectiveDate: '2026-08-01' },
+      }),
       getStatus: jest.fn().mockResolvedValue({ stationId: 'keco:ME:1', chargers: [] }),
     }
     const registrar = new McpToolRegistrarService(placeService as never, chargerService as never)
@@ -33,6 +41,7 @@ describe('McpToolRegistrarService charger tools', () => {
       'place_search_nearby',
       'place_geocode',
       'charger_search_nearby',
+      'charger_scope_preview',
       'charger_status',
     ])
     await registrations.get('charger_search_nearby')?.({
@@ -41,6 +50,16 @@ describe('McpToolRegistrarService charger tools', () => {
       radiusM: 3000,
     } as never)
     expect(chargerService.searchNearby).toHaveBeenCalledWith({
+      lat: 37.5,
+      lng: 126.9,
+      radiusM: 3000,
+    })
+    await registrations.get('charger_scope_preview')?.({
+      lat: 37.5,
+      lng: 126.9,
+      radiusM: 3000,
+    } as never)
+    expect(chargerService.previewScope).toHaveBeenCalledWith({
       lat: 37.5,
       lng: 126.9,
       radiusM: 3000,

@@ -6,18 +6,40 @@ import { NestFactory } from '@nestjs/core'
 import { z } from 'zod'
 import { McpException } from 'zido/common'
 import { PlaceService } from 'zido/place-domain'
+import { ChargerService, type CollectionScopeInput } from 'zido/charger-domain'
 import { CliAppModule } from './app.module'
+import { ChargerCliAppModule } from './charger-app.module'
 import { executeGeocodeCommand, GeocodeCommandInputSchema } from './commands/geocode.command'
 import type { GeocodeCommandInput } from './commands/geocode.command'
 import { executeNearbyCommand, NearbyCommandInputSchema } from './commands/nearby.command'
 import type { NearbyCommandInput } from './commands/nearby.command'
 import { executeResolveCommand, ResolveCommandInputSchema } from './commands/resolve.command'
 import type { ResolveCommandInput } from './commands/resolve.command'
+import {
+  ChargerNearbyCommandInputSchema,
+  ChargerScopeCommandInputSchema,
+  ChargerStatusCommandInputSchema,
+  executeChargerNearbyCommand,
+  executeChargerScopeCommand,
+  executeChargerStatusCommand,
+} from './commands/charger.command'
+import type {
+  ChargerNearbyCommandInput,
+  ChargerScopeCommandInput,
+  ChargerStatusCommandInput,
+} from './commands/charger.command'
 
 /**
  * Direct domain CLI가 노출하는 command 이름을 제한한다.
  */
-const CliCommandSchema = z.enum(['resolve', 'nearby', 'geocode'])
+const CliCommandSchema = z.enum([
+  'resolve',
+  'nearby',
+  'geocode',
+  'charger-nearby',
+  'charger-status',
+  'charger-scope',
+])
 /**
  * Parser와 command dispatch가 공유하는 command 이름이다.
  */
@@ -25,7 +47,13 @@ type CliCommand = z.infer<typeof CliCommandSchema>
 /**
  * Command별 Zod input을 domain 호출 직전까지 보존한다.
  */
-type CommandInput = ResolveCommandInput | NearbyCommandInput | GeocodeCommandInput
+type CommandInput =
+  | ResolveCommandInput
+  | NearbyCommandInput
+  | GeocodeCommandInput
+  | ChargerNearbyCommandInput
+  | ChargerStatusCommandInput
+  | ChargerScopeCommandInput
 
 /**
  * Human과 machine mode가 공유하는 안정적 error payload다.
@@ -34,6 +62,7 @@ const CliErrorSchema = z.object({
   code: z.string(),
   message: z.string(),
   hint: z.string(),
+  scope: z.unknown().optional(),
 })
 /**
  * 공개 error envelope의 검증된 payload다.
@@ -109,6 +138,37 @@ function usage(command: CliCommand | null = null): string {
       '  zido geocode "서울특별시 중구 한강대로 405"',
       '  zido --json geocode --address "서울역"',
     ],
+    'charger-nearby': [
+      'Usage:',
+      '  zido [--json] charger nearby --lat <lat> --lng <lng> --radius <meters> [--scope auto|regions|nationwide]',
+      '',
+      'Input:',
+      '  regions mode는 --regions 11,41을, nationwide mode는 --acknowledge-nationwide true를 요구합니다.',
+      '',
+      'Examples:',
+      '  zido charger nearby --lat 37.556 --lng 126.972 --radius 3000 --scope auto',
+      '  zido --json charger nearby --lat 37.556 --lng 126.972 --radius 3000 --scope regions --regions 11',
+    ],
+    'charger-status': [
+      'Usage:',
+      '  zido [--json] charger status <stationId> [chargerId]',
+      '',
+      'Input:',
+      '  local snapshot의 opaque stationId를 조회하며 새 collection을 시작하지 않습니다.',
+      '',
+      'Examples:',
+      '  zido charger status "keco:ME:ST-1" 01',
+    ],
+    'charger-scope': [
+      'Usage:',
+      '  zido [--json] charger scope --lat <lat> --lng <lng> --radius <meters> [--scope auto|regions|nationwide]',
+      '',
+      'Input:',
+      '  provider 호출 없이 mode, regionCodes, coverage, provenance와 예상 범위를 출력합니다.',
+      '',
+      'Examples:',
+      '  zido charger scope --lat 37.556 --lng 126.972 --radius 3000',
+    ],
   }
   if (command) {
     return [
@@ -121,19 +181,22 @@ function usage(command: CliCommand | null = null): string {
     ].join('\n')
   }
   return [
-    'Zido는 여러 지도 provider를 공통 interface로 사용하는 장소 검색 CLI입니다.',
+    'Zido는 여러 지도 provider를 공통 interface로 사용하는 장소 검색 CLI입니다. KECO 충전소는 명시된 collection scope로 조회합니다.',
     '',
     'Usage:',
     '  zido [--json] <command> [arguments]',
     '',
     'Input:',
-    '  <command>에 resolve, nearby 또는 geocode를 지정합니다.',
+    '  <command>에 resolve, nearby, geocode 또는 charger <subcommand>를 지정합니다.',
     '  command별 argument와 제약은 zido <command> --help에서 확인합니다.',
     '',
     'Commands:',
     '  zido resolve "query"',
     '  zido nearby --lat <lat> --lng <lng> --keyword <keyword> --radius <meters>',
     '  zido geocode "address"',
+    '  zido charger nearby --lat <lat> --lng <lng> --radius <meters>',
+    '  zido charger status <stationId> [chargerId]',
+    '  zido charger scope --lat <lat> --lng <lng> --radius <meters>',
     '',
     'Examples:',
     '  zido resolve "서울역 카페"',
@@ -234,6 +297,20 @@ function parseArguments(argv: readonly string[]): ParsedArguments {
       )
     }
     if (!command) {
+      if (token === 'charger') {
+        const subcommand = argv[index + 1]
+        const normalized = subcommand ? CliCommandSchema.safeParse(`charger-${subcommand}`) : null
+        if (!normalized?.success) {
+          throw cliFailure(
+            'CLI_USAGE',
+            'charger는 nearby, status 또는 scope subcommand가 필요합니다.',
+            'zido charger nearby --help를 확인하세요.',
+          )
+        }
+        command = normalized.data
+        index += 1
+        continue
+      }
       const parsedCommand = CliCommandSchema.safeParse(token)
       if (parsedCommand.success) {
         command = parsedCommand.data
@@ -262,6 +339,9 @@ function readCommandInput(parsed: ParsedArguments): CommandInput {
     resolve: ['query'],
     nearby: ['lat', 'lng', 'keyword', 'radius'],
     geocode: ['address'],
+    'charger-nearby': ['lat', 'lng', 'radius', 'limit', 'scope', 'regions', 'acknowledge-nationwide'],
+    'charger-status': ['station-id', 'charger-id'],
+    'charger-scope': ['lat', 'lng', 'radius', 'scope', 'regions', 'acknowledge-nationwide'],
   } as const
   if (parsed.command === null) {
     throw cliFailure('CLI_USAGE', 'command가 필요합니다.', 'zido --help에서 사용법을 확인하세요.')
@@ -318,6 +398,71 @@ function readCommandInput(parsed: ParsedArguments): CommandInput {
       return GeocodeCommandInputSchema.parse({
         address: parsed.options.address ?? parsed.positional[0],
       })
+    case 'charger-nearby':
+      if (parsed.positional.length > 0) {
+        throw cliFailure(
+          'CLI_USAGE',
+          'charger nearby는 named input만 받습니다.',
+          'zido charger nearby --help에서 input 형식을 확인하세요.',
+        )
+      }
+      return ChargerNearbyCommandInputSchema.parse({
+        lat: Number(parsed.options.lat),
+        lng: Number(parsed.options.lng),
+        radiusM: Number(parsed.options.radius ?? 3_000),
+        limit: parsed.options.limit === undefined ? undefined : Number(parsed.options.limit),
+        scope: parseCollectionScope(parsed.options),
+      })
+    case 'charger-status':
+      if (parsed.positional.length > 2) {
+        throw cliFailure(
+          'CLI_USAGE',
+          'charger status는 stationId와 선택적 chargerId만 받습니다.',
+          'zido charger status --help를 확인하세요.',
+        )
+      }
+      return ChargerStatusCommandInputSchema.parse({
+        stationId: parsed.options['station-id'] ?? parsed.positional[0],
+        chargerId: parsed.options['charger-id'] ?? parsed.positional[1],
+      })
+    case 'charger-scope':
+      if (parsed.positional.length > 0) {
+        throw cliFailure(
+          'CLI_USAGE',
+          'charger scope는 named input만 받습니다.',
+          'zido charger scope --help에서 input 형식을 확인하세요.',
+        )
+      }
+      return ChargerScopeCommandInputSchema.parse({
+        lat: Number(parsed.options.lat),
+        lng: Number(parsed.options.lng),
+        radiusM: Number(parsed.options.radius ?? 3_000),
+        scope: parseCollectionScope(parsed.options),
+      })
+  }
+}
+
+/**
+ * CLI scope options를 transport-independent domain contract로 정규화한다.
+ */
+function parseCollectionScope(options: Record<string, string>): CollectionScopeInput | undefined {
+  if (options.scope === undefined && options.regions === undefined && options['acknowledge-nationwide'] === undefined) {
+    return undefined
+  }
+  const mode = (options.scope ?? 'auto').toUpperCase()
+  return {
+    mode: mode as CollectionScopeInput['mode'],
+    regionCodes:
+      options.regions === undefined
+        ? undefined
+        : options.regions
+            .split(',')
+            .map((value) => value.trim())
+            .filter(Boolean),
+    acknowledgeNationwide:
+      options['acknowledge-nationwide'] === undefined
+        ? undefined
+        : options['acknowledge-nationwide'] === 'true',
   }
 }
 
@@ -347,8 +492,23 @@ function printResult(value: unknown, json: boolean): void {
     .safeParse(value)
   if (collection.success) {
     const { items } = collection.data
-    const output = items
+    const resultOutput = items
       .map((item, index) => [`Result ${index + 1}`, ...formatFields(item, '  ')].join('\n'))
+      .join('\n\n')
+    const record = value as Record<string, unknown>
+    const scopeOutput =
+      typeof record.scope === 'object' && record.scope !== null
+        ? ['Scope', ...formatFields(record.scope as Record<string, unknown>, '  ')].join('\n')
+        : ''
+    const summaryOutput =
+      record.dataAsOf !== undefined || record.matchedCount !== undefined
+        ? formatFields({
+            dataAsOf: record.dataAsOf,
+            matchedCount: record.matchedCount,
+          }).join('\n')
+        : ''
+    const output = [scopeOutput, summaryOutput, resultOutput || 'No matching charging stations.']
+      .filter(Boolean)
       .join('\n\n')
     process.stdout.write(`${output}\n`)
     return
@@ -364,6 +524,7 @@ function isNoResult(value: unknown): boolean {
   return (
     typeof value === 'object' &&
     value !== null &&
+    !('scope' in value) &&
     'items' in value &&
     Array.isArray(value.items) &&
     value.items.length === 0
@@ -397,6 +558,7 @@ function normalizeFailure(error: unknown): {
         code: error.code,
         message: error.message,
         hint,
+        scope: 'scope' in error ? error.scope : undefined,
       }),
       exitCode: isUsage ? 2 : isConfiguration ? 3 : 4,
     }
@@ -436,20 +598,38 @@ function printFailure(failure: CliError, json: boolean): void {
 async function runDomainCommand(parsed: ParsedArguments, input: CommandInput): Promise<number> {
   let context: INestApplicationContext | undefined
   try {
-    context = await NestFactory.createApplicationContext(CliAppModule, {
+    const isChargerCommand = parsed.command?.startsWith('charger-') === true
+    context = await NestFactory.createApplicationContext(isChargerCommand ? ChargerCliAppModule : CliAppModule, {
       logger: false,
     })
-    const service = context.get(PlaceService)
     let result: unknown
     switch (parsed.command) {
       case 'resolve':
-        result = await executeResolveCommand(service, ResolveCommandInputSchema.parse(input))
+        result = await executeResolveCommand(context.get(PlaceService), ResolveCommandInputSchema.parse(input))
         break
       case 'nearby':
-        result = await executeNearbyCommand(service, NearbyCommandInputSchema.parse(input))
+        result = await executeNearbyCommand(context.get(PlaceService), NearbyCommandInputSchema.parse(input))
         break
       case 'geocode':
-        result = await executeGeocodeCommand(service, GeocodeCommandInputSchema.parse(input))
+        result = await executeGeocodeCommand(context.get(PlaceService), GeocodeCommandInputSchema.parse(input))
+        break
+      case 'charger-nearby':
+        result = await executeChargerNearbyCommand(
+          context.get(ChargerService),
+          ChargerNearbyCommandInputSchema.parse(input),
+        )
+        break
+      case 'charger-status':
+        result = await executeChargerStatusCommand(
+          context.get(ChargerService),
+          ChargerStatusCommandInputSchema.parse(input),
+        )
+        break
+      case 'charger-scope':
+        result = await executeChargerScopeCommand(
+          context.get(ChargerService),
+          ChargerScopeCommandInputSchema.parse(input),
+        )
         break
       case null:
         throw cliFailure('CLI_USAGE', 'command가 필요합니다.', 'zido --help에서 사용법을 확인하세요.')

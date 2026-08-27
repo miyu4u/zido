@@ -36,6 +36,18 @@ jest.mock('zido/common', () => {
           apiKey: '',
         },
       },
+      charger: {
+        sqlitePath: ':memory:',
+        ttlMs: 300_000,
+        timeoutMs: 8_000,
+        maxRetries: 1,
+        periodMinutes: 5,
+        defaultRegionCodes: [],
+        allowNationwideCollection: false,
+        source: 'keco',
+        endpoint: 'https://example.invalid/keco',
+        serviceKey: 'dummy-keco-key',
+      },
     },
   }
 })
@@ -107,6 +119,46 @@ describe('stdio-server e2e smoke', () => {
        */
       const toolNames = listed.tools.map((tool) => tool.name)
       expect(toolNames).toContain('place_resolve')
+      expect(toolNames).toContain('charger_scope_preview')
+
+      const scopeResult = await client.callTool({
+        name: 'charger_scope_preview',
+        arguments: { lat: 37.556, lng: 126.972, radiusM: 3_000 },
+      })
+      const scopeText = Array.isArray(scopeResult.content)
+        ? scopeResult.content
+            .map((item) =>
+              typeof item === 'object' && item !== null && 'text' in item && typeof item.text === 'string'
+                ? item.text
+                : '',
+            )
+            .join('')
+        : ''
+      expect(JSON.parse(scopeText)).toMatchObject({
+        mode: 'AUTO',
+        coverage: 'COMPLETE',
+        regionCodes: ['11'],
+        collectionTriggered: false,
+      })
+
+      const unresolvedResult = await client.callTool({
+        name: 'charger_search_nearby',
+        arguments: { lat: 35.1796, lng: 129.0756, radiusM: 3_000 },
+      })
+      const unresolvedText = Array.isArray(unresolvedResult.content)
+        ? unresolvedResult.content
+            .map((item) =>
+              typeof item === 'object' && item !== null && 'text' in item && typeof item.text === 'string'
+                ? item.text
+                : '',
+            )
+            .join('')
+        : ''
+      expect(unresolvedResult.isError).toBe(true)
+      expect(JSON.parse(unresolvedText)).toMatchObject({
+        error: { code: 'COLLECTION_SCOPE_REQUIRED' },
+        scope: { mode: 'AUTO', coverage: 'UNRESOLVED', regionCodes: [] },
+      })
 
       /**
        * place_resolve를 서울역 쿼리로 호출한 MCP tool 응답이다.

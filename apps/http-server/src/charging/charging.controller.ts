@@ -43,6 +43,7 @@ export class ChargingController {
           requestId,
           generatedAt: new Date().toISOString(),
           dataAsOf: result.dataAsOf,
+          scope: result.scope,
         },
         sourceSummary: result.sourceSummary,
       }
@@ -88,6 +89,11 @@ export class ChargingController {
   }
 
   private parseSearchQuery(query: Record<string, string | undefined>): ChargerSearchQuery {
+    for (const [field, value] of Object.entries(query)) {
+      if (value !== undefined && typeof value !== 'string') {
+        throw new McpException(`Invalid ${field}`, 'INVALID_ARGUMENT', 400)
+      }
+    }
     const lat = this.number(query.lat, 'lat')
     const lng = this.number(query.lng, 'lng')
     const radiusM = query.radiusM === undefined ? undefined : this.integer(query.radiusM, 'radiusM')
@@ -110,6 +116,25 @@ export class ChargingController {
       status,
       freshness: freshness as ChargerSearchQuery['freshness'],
       source: query.source as ChargerSearchQuery['source'],
+      scope:
+        query.scopeMode === undefined &&
+        query.regionCodes === undefined &&
+        query.acknowledgeNationwide === undefined
+          ? undefined
+          : {
+              mode: (query.scopeMode ?? 'AUTO').toUpperCase() as 'AUTO' | 'REGIONS' | 'NATIONWIDE',
+              regionCodes:
+                query.regionCodes === undefined
+                  ? undefined
+                  : query.regionCodes
+                      .split(',')
+                      .map((value) => value.trim())
+                      .filter(Boolean),
+              acknowledgeNationwide:
+                query.acknowledgeNationwide === undefined
+                  ? undefined
+                  : query.acknowledgeNationwide === 'true',
+            },
     }
   }
 
@@ -136,6 +161,9 @@ export class ChargingController {
         message: this.publicMessage(code),
         retryable: code === 'SNAPSHOT_UNAVAILABLE' || code === 'RATE_LIMITED',
       },
+      ...(typeof error === 'object' && error !== null && 'scope' in error
+        ? { scope: (error as { scope?: unknown }).scope }
+        : {}),
       meta: { requestId },
     }
   }
@@ -150,6 +178,10 @@ export class ChargingController {
         return 'The requested charging station was not found'
       case 'SNAPSHOT_UNAVAILABLE':
         return 'Charging snapshot is temporarily unavailable'
+      case 'COLLECTION_SCOPE_REQUIRED':
+        return 'Charging collection scope is required'
+      case 'NATIONWIDE_NOT_ALLOWED':
+        return 'Nationwide charging collection is not allowed'
       case 'RATE_LIMITED':
         return 'Charging provider rate limit reached'
       default:
@@ -159,6 +191,8 @@ export class ChargingController {
 
   private errorStatus(code: string): number {
     if (code === 'INVALID_ARGUMENT' || code === 'INVALID_CURSOR') return 400
+    if (code === 'NATIONWIDE_NOT_ALLOWED') return 403
+    if (code === 'COLLECTION_SCOPE_REQUIRED') return 409
     if (code === 'NOT_FOUND') return 404
     if (code === 'RATE_LIMITED') return 429
     if (code === 'SNAPSHOT_UNAVAILABLE') return 503

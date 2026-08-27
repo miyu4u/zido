@@ -431,6 +431,10 @@ describe('SqliteChargerSnapshotStore Integration Tests', () => {
         queryKey: 'meta_test_key',
         source: 'keco',
         observedAt: '2026-08-15T15:00:00.000Z',
+        metadata: {
+          scope: { mode: 'REGIONS', regionCodes: ['11'] },
+          boundary: { version: '2026.08', source: 'fixture' },
+        },
         chargers: [
           {
             source: 'keco',
@@ -448,6 +452,10 @@ describe('SqliteChargerSnapshotStore Integration Tests', () => {
       expect(meta?.source).toBe('keco')
       expect(meta?.itemCount).toBe(1)
       expect(meta?.observedAt).toBe('2026-08-15T15:00:00.000Z')
+      expect(meta?.metadata).toEqual({
+        scope: { mode: 'REGIONS', regionCodes: ['11'] },
+        boundary: { version: '2026.08', source: 'fixture' },
+      })
     })
 
     it('correctly evaluates TTL boundary conditions for freshness', async () => {
@@ -544,6 +552,74 @@ describe('SqliteChargerSnapshotStore Integration Tests', () => {
       const after = await store.readQuerySnapshot('atomic_test_key')
       expect(after?.observedAt).toBe(initialObservedAt)
       expect(after?.chargers[0].status).toBe('AVAILABLE')
+    })
+
+    it('mixed newer/stale charger payload를 부분 반영하지 않는다', async () => {
+      const initialObservedAt = '2026-08-15T10:00:00.000Z'
+      const stations = [
+        {
+          source: 'keco' as const,
+          operatorId: 'ME',
+          stationId: 'ST_MIXED',
+          name: 'Mixed Station',
+        },
+      ]
+      await store.writeQuerySnapshot({
+        queryKey: 'mixed-age-query',
+        source: 'keco',
+        observedAt: initialObservedAt,
+        stations,
+        chargers: [
+          {
+            source: 'keco',
+            operatorId: 'ME',
+            stationId: 'ST_MIXED',
+            chargerId: '01',
+            status: 'AVAILABLE',
+            observedAt: initialObservedAt,
+          },
+          {
+            source: 'keco',
+            operatorId: 'ME',
+            stationId: 'ST_MIXED',
+            chargerId: '02',
+            status: 'AVAILABLE',
+            observedAt: initialObservedAt,
+          },
+        ],
+      })
+
+      await store.writeQuerySnapshot({
+        queryKey: 'mixed-age-query',
+        source: 'keco',
+        observedAt: '2026-08-15T10:30:00.000Z',
+        stations,
+        chargers: [
+          {
+            source: 'keco',
+            operatorId: 'ME',
+            stationId: 'ST_MIXED',
+            chargerId: '01',
+            status: 'CHARGING',
+            observedAt: '2026-08-15T10:30:00.000Z',
+          },
+          {
+            source: 'keco',
+            operatorId: 'ME',
+            stationId: 'ST_MIXED',
+            chargerId: '02',
+            status: 'UNAVAILABLE',
+            observedAt: '2026-08-15T09:30:00.000Z',
+          },
+        ],
+      })
+
+      const snapshot = await store.readQuerySnapshot('mixed-age-query')
+      expect(snapshot?.observedAt).toBe(initialObservedAt)
+      expect(snapshot?.chargers).toEqual([
+        expect.objectContaining({ chargerId: '01', status: 'AVAILABLE' }),
+        expect.objectContaining({ chargerId: '02', status: 'AVAILABLE' }),
+      ])
     })
 
     it('rejects writeQuerySnapshot with invalid data arguments', async () => {

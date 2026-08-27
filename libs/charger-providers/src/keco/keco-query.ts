@@ -1,117 +1,79 @@
-import { KECO_REQUEST_BOUNDS } from './keco-contracts'
-import type { ChargerInfoQuery, ChargerStatusQuery } from './keco-contracts'
-import { KecoProviderError } from './keco-errors'
+import { ValidatedInfoQuerySchema, ValidatedStatusQuerySchema } from './types'
+import type { ChargerInfoQuery, ChargerStatusQuery, ValidatedInfoQuery, ValidatedStatusQuery } from './types'
+import { KecoProviderError } from './keco.exception'
 
-export interface ValidatedStatusQuery {
-  pageNo: number
-  numOfRows: number
-  period: number
-  zcode?: string
-}
-
-export interface ValidatedInfoQuery {
-  pageNo: number
-  numOfRows: number
-  zcode?: string
-}
+export type { ValidatedStatusQuery, ValidatedInfoQuery }
 
 /**
- * Validates and normalizes KECO getChargerStatus query parameters.
+ * KECO 충전기 상태 조회 쿼리 파라미터를 Zod 스키마로 검증 및 정규화한다.
+ *
+ * @param query 사용자가 전달한 상태 조회 쿼리 파라미터 객체
+ * @returns 검증 및 기본값이 채워진 정규화된 쿼리 객체
+ * @throws {KecoProviderError} 유효하지 않은 쿼리 파라미터인 경우 INVALID_REQUEST 에러
  */
 export function validateChargerStatusQuery(query?: ChargerStatusQuery): ValidatedStatusQuery {
-  const pageNo = query?.pageNo ?? KECO_REQUEST_BOUNDS.PAGE_NO_MIN
-  if (!Number.isSafeInteger(pageNo) || pageNo < KECO_REQUEST_BOUNDS.PAGE_NO_MIN) {
+  const sanitizedInput = query
+    ? {
+        ...query,
+        zcode: query.zcode !== undefined && query.zcode !== null && String(query.zcode).trim() !== ''
+          ? String(query.zcode).trim()
+          : undefined,
+      }
+    : {}
+
+  const parseResult = ValidatedStatusQuerySchema.safeParse(sanitizedInput)
+  if (!parseResult.success) {
+    const issue = parseResult.error.issues[0]
     throw new KecoProviderError(
-      `Invalid pageNo: ${pageNo}. Must be an integer >= ${KECO_REQUEST_BOUNDS.PAGE_NO_MIN}.`,
-      { failureKind: 'INVALID_REQUEST', retryable: false }
+      `Invalid query parameter: ${issue.path.join('.') || 'root'} - ${issue.message}`,
+      { failureKind: 'INVALID_REQUEST', retryable: false },
     )
   }
 
-  const numOfRows = query?.numOfRows ?? KECO_REQUEST_BOUNDS.DEFAULT_NUM_OF_ROWS
-  if (
-    !Number.isSafeInteger(numOfRows) ||
-    numOfRows < KECO_REQUEST_BOUNDS.NUM_OF_ROWS_MIN ||
-    numOfRows > KECO_REQUEST_BOUNDS.NUM_OF_ROWS_MAX
-  ) {
-    throw new KecoProviderError(
-      `Invalid numOfRows: ${numOfRows}. Must be an integer between ${KECO_REQUEST_BOUNDS.NUM_OF_ROWS_MIN} and ${KECO_REQUEST_BOUNDS.NUM_OF_ROWS_MAX}.`,
-      { failureKind: 'INVALID_REQUEST', retryable: false }
-    )
-  }
-
-  const period = query?.period ?? KECO_REQUEST_BOUNDS.DEFAULT_PERIOD
-  if (
-    !Number.isSafeInteger(period) ||
-    period < KECO_REQUEST_BOUNDS.PERIOD_MIN ||
-    period > KECO_REQUEST_BOUNDS.PERIOD_MAX
-  ) {
-    throw new KecoProviderError(
-      `Invalid period: ${period}. Must be an integer between ${KECO_REQUEST_BOUNDS.PERIOD_MIN} and ${KECO_REQUEST_BOUNDS.PERIOD_MAX}.`,
-      { failureKind: 'INVALID_REQUEST', retryable: false }
-    )
-  }
-
-  let zcode: string | undefined
-  if (query?.zcode !== undefined && query?.zcode !== null && query.zcode !== '') {
-    const trimmedZcode = String(query.zcode).trim()
-    if (!/^\d{2}$/.test(trimmedZcode)) {
-      throw new KecoProviderError(
-        `Invalid zcode: "${query.zcode}". Must be a 2-digit numeric string (e.g. "11", "28").`,
-        { failureKind: 'INVALID_REQUEST', retryable: false }
-      )
-    }
-    zcode = trimmedZcode
-  }
-
-  return { pageNo, numOfRows, period, zcode }
+  return parseResult.data
 }
 
 /**
- * Validates and normalizes KECO getChargerInfo query parameters.
+ * KECO 충전소/충전기 기본 정보 조회 쿼리 파라미터를 Zod 스키마로 검증 및 정규화한다.
+ *
+ * @param query 사용자가 전달한 정보 조회 쿼리 파라미터 객체
+ * @returns 검증 및 기본값이 채워진 정규화된 쿼리 객체
+ * @throws {KecoProviderError} 유효하지 않은 쿼리 파라미터인 경우 INVALID_REQUEST 에러
  */
 export function validateChargerInfoQuery(query?: ChargerInfoQuery): ValidatedInfoQuery {
-  const pageNo = query?.pageNo ?? KECO_REQUEST_BOUNDS.PAGE_NO_MIN
-  if (!Number.isSafeInteger(pageNo) || pageNo < KECO_REQUEST_BOUNDS.PAGE_NO_MIN) {
+  const sanitizedInput = query
+    ? {
+        ...query,
+        zcode: query.zcode !== undefined && query.zcode !== null && String(query.zcode).trim() !== ''
+          ? String(query.zcode).trim()
+          : undefined,
+      }
+    : {}
+
+  const parseResult = ValidatedInfoQuerySchema.safeParse(sanitizedInput)
+  if (!parseResult.success) {
+    const issue = parseResult.error.issues[0]
     throw new KecoProviderError(
-      `Invalid pageNo: ${pageNo}. Must be an integer >= ${KECO_REQUEST_BOUNDS.PAGE_NO_MIN}.`,
-      { failureKind: 'INVALID_REQUEST', retryable: false }
+      `Invalid query parameter: ${issue.path.join('.') || 'root'} - ${issue.message}`,
+      { failureKind: 'INVALID_REQUEST', retryable: false },
     )
   }
 
-  const numOfRows = query?.numOfRows ?? KECO_REQUEST_BOUNDS.DEFAULT_NUM_OF_ROWS
-  if (
-    !Number.isSafeInteger(numOfRows) ||
-    numOfRows < KECO_REQUEST_BOUNDS.NUM_OF_ROWS_MIN ||
-    numOfRows > KECO_REQUEST_BOUNDS.NUM_OF_ROWS_MAX
-  ) {
-    throw new KecoProviderError(
-      `Invalid numOfRows: ${numOfRows}. Must be an integer between ${KECO_REQUEST_BOUNDS.NUM_OF_ROWS_MIN} and ${KECO_REQUEST_BOUNDS.NUM_OF_ROWS_MAX}.`,
-      { failureKind: 'INVALID_REQUEST', retryable: false }
-    )
-  }
-
-  let zcode: string | undefined
-  if (query?.zcode !== undefined && query?.zcode !== null && query.zcode !== '') {
-    const trimmedZcode = String(query.zcode).trim()
-    if (!/^\d{2}$/.test(trimmedZcode)) {
-      throw new KecoProviderError(
-        `Invalid zcode: "${query.zcode}". Must be a 2-digit numeric string (e.g. "11", "28").`,
-        { failureKind: 'INVALID_REQUEST', retryable: false }
-      )
-    }
-    zcode = trimmedZcode
-  }
-
-  return { pageNo, numOfRows, zcode }
+  return parseResult.data
 }
 
 /**
- * Builds full request URL for getChargerStatus.
+ * KECO getChargerStatus 요청을 위한 전체 URL을 생성한다.
+ *
+ * @param endpoint KECO API 기본 엔드포인트 URL
+ * @param serviceKey 공공데이터포털 발급 서비스키
+ * @param query 검증된 상태 조회 파라미터
+ * @returns 쿼리 파라미터가 포함된 전체 요청 URL 문자열
  */
 export function buildStatusUrl(
   endpoint: string,
   serviceKey: string,
-  query: ValidatedStatusQuery
+  query: ValidatedStatusQuery,
 ): string {
   const base = endpoint.replace(/\/+$/, '')
   const url = new URL(`${base}/getChargerStatus`)
@@ -126,12 +88,17 @@ export function buildStatusUrl(
 }
 
 /**
- * Builds full request URL for getChargerInfo.
+ * KECO getChargerInfo 요청을 위한 전체 URL을 생성한다.
+ *
+ * @param endpoint KECO API 기본 엔드포인트 URL
+ * @param serviceKey 공공데이터포털 발급 서비스키
+ * @param query 검증된 정보 조회 파라미터
+ * @returns 쿼리 파라미터가 포함된 전체 요청 URL 문자열
  */
 export function buildInfoUrl(
   endpoint: string,
   serviceKey: string,
-  query: ValidatedInfoQuery
+  query: ValidatedInfoQuery,
 ): string {
   const base = endpoint.replace(/\/+$/, '')
   const url = new URL(`${base}/getChargerInfo`)

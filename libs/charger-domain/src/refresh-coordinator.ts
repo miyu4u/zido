@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common'
+import { McpException } from 'zido/common'
 import type { IKecoProvider, KecoInfoItem, KecoStatusItem, ProviderPage } from 'zido/charger-providers'
 import { KecoProviderError, KECO_REQUEST_BOUNDS } from 'zido/charger-providers'
 import type {
@@ -12,16 +13,25 @@ import { normalizeKecoStatus, evaluateFreshness, toEffectiveStatus } from './fre
 /** Hard cap on provider pages fetched per refresh to prevent infinite pagination. */
 const MAX_PAGES = 50
 
+export type RefreshScope =
+  | { regionCodes: string[]; nationwide?: never; zcode?: never }
+  | { nationwide: true; regionCodes?: never; zcode?: never }
+  | { zcode: string; regionCodes?: never; nationwide?: never }
+
 export interface RefreshOptions {
   queryKey: string
   source: 'keco'
   zcode?: string
+  regionCodes?: string[]
+  nationwide?: boolean
   /** Status update window forwarded to KECO in minutes. */
   periodMinutes?: number
   ttlMs: number
   /** Maximum number of retries per retryable provider failure (default 2). */
   maxRetries?: number
   timeoutMs?: number
+  /** Atomic snapshot과 함께 보존할 scope/provenance metadata다. */
+  metadata?: Record<string, unknown>
 }
 
 /**
@@ -68,36 +78,96 @@ export class RefreshCoordinator {
     const {
       queryKey,
       source,
-      zcode,
+      zcode: singleZcode,
+      regionCodes: multiRegionCodes,
+      nationwide: isNationwideExplicit,
       periodMinutes = KECO_REQUEST_BOUNDS.DEFAULT_PERIOD,
       ttlMs,
       maxRetries = 2,
       timeoutMs = 8_000,
+      metadata,
     } = options
+
+    const isNationwide = isNationwideExplicit === true
+    const regionCodes =
+      multiRegionCodes && multiRegionCodes.length > 0
+        ? multiRegionCodes
+        : singleZcode
+          ? [singleZcode]
+          : []
+
+    if (!isNationwide && regionCodes.length === 0) {
+      throw new McpException('Explicit collection scope is required', 'INVALID_ARGUMENT', 400)
+    }
+
     const observedAt = new Date().toISOString()
+    const infoMap = new Map<string, KecoInfoItem>()
+    const statusMap = new Map<string, KecoStatusItem>()
 
-    const infoItems: KecoInfoItem[] = await this.collectAllPages(
-      (pageNo) =>
-        this.provider.fetchInfoPage({
-          pageNo,
-          numOfRows: KECO_REQUEST_BOUNDS.DEFAULT_NUM_OF_ROWS,
-          zcode,
-        }),
-      maxRetries,
-      timeoutMs,
-    )
+    if (isNationwide) {
+      const infoPages = await this.collectAllPages(
+        (pageNo) =>
+          this.provider.fetchInfoPage({
+            pageNo,
+            numOfRows: KECO_REQUEST_BOUNDS.DEFAULT_NUM_OF_ROWS,
+            nationwide: true,
+          }),
+        maxRetries,
+        timeoutMs,
+      )
+      for (const item of infoPages) {
+        infoMap.set(`${item.busiId ?? ''}:${item.statId ?? ''}`, item)
+      }
 
-    const statusItems: KecoStatusItem[] = await this.collectAllPages(
-      (pageNo) =>
-        this.provider.fetchStatusPage({
-          pageNo,
-          numOfRows: KECO_REQUEST_BOUNDS.DEFAULT_NUM_OF_ROWS,
-          period: periodMinutes,
-          zcode,
-        }),
-      maxRetries,
-      timeoutMs,
-    )
+      const statusPages = await this.collectAllPages(
+        (pageNo) =>
+          this.provider.fetchStatusPage({
+            pageNo,
+            numOfRows: KECO_REQUEST_BOUNDS.DEFAULT_NUM_OF_ROWS,
+            period: periodMinutes,
+            nationwide: true,
+          }),
+        maxRetries,
+        timeoutMs,
+      )
+      for (const item of statusPages) {
+        statusMap.set(`${item.busiId ?? ''}:${item.statId ?? ''}:${item.chgerId ?? ''}`, item)
+      }
+    } else {
+      for (const code of regionCodes) {
+        const infoPages = await this.collectAllPages(
+          (pageNo) =>
+            this.provider.fetchInfoPage({
+              pageNo,
+              numOfRows: KECO_REQUEST_BOUNDS.DEFAULT_NUM_OF_ROWS,
+              zcode: code,
+            }),
+          maxRetries,
+          timeoutMs,
+        )
+        for (const item of infoPages) {
+          infoMap.set(`${item.busiId ?? ''}:${item.statId ?? ''}`, item)
+        }
+
+        const statusPages = await this.collectAllPages(
+          (pageNo) =>
+            this.provider.fetchStatusPage({
+              pageNo,
+              numOfRows: KECO_REQUEST_BOUNDS.DEFAULT_NUM_OF_ROWS,
+              period: periodMinutes,
+              zcode: code,
+            }),
+          maxRetries,
+          timeoutMs,
+        )
+        for (const item of statusPages) {
+          statusMap.set(`${item.busiId ?? ''}:${item.statId ?? ''}:${item.chgerId ?? ''}`, item)
+        }
+      }
+    }
+
+    const infoItems: KecoInfoItem[] = Array.from(infoMap.values())
+    const statusItems: KecoStatusItem[] = Array.from(statusMap.values())
 
     const now = new Date(observedAt)
 
@@ -141,6 +211,7 @@ export class RefreshCoordinator {
       observedAt,
       stations,
       chargers,
+      metadata,
     }
 
     await this.store.writeQuerySnapshot(input)

@@ -15,7 +15,7 @@ describe('KecoXmlParser', () => {
     parser = new KecoXmlParser()
   })
 
-  describe('parseStatusPage', () => {
+  describe('COV-012 & COV-013: parseStatusPage', () => {
     it('should parse success status XML with items and pagination metadata', () => {
       const xml = readFixture('status-success.xml')
       const result = parser.parseStatusPage(xml)
@@ -43,6 +43,37 @@ describe('KecoXmlParser', () => {
       })
     })
 
+    it('공식 live 응답처럼 header에 있는 pagination metadata를 해석한다', () => {
+      const xml = `
+        <response>
+          <header>
+            <resultCode>00</resultCode>
+            <resultMsg>OK</resultMsg>
+            <totalCount>1</totalCount>
+            <pageNo>1</pageNo>
+            <numOfRows>10</numOfRows>
+          </header>
+          <body>
+            <items>
+              <item>
+                <busiId>ME</busiId>
+                <statId>28260005</statId>
+                <chgerId>01</chgerId>
+                <stat>2</stat>
+                <statUpdDt>20190829121020</statUpdDt>
+              </item>
+            </items>
+          </body>
+        </response>
+      `
+
+      expect(parser.parseStatusPage(xml)).toMatchObject({
+        pageNo: 1,
+        numOfRows: 10,
+        totalCount: 1,
+      })
+    })
+
     it('should parse empty status XML fixture returning empty array', () => {
       const xml = readFixture('status-empty.xml')
       const result = parser.parseStatusPage(xml)
@@ -55,7 +86,7 @@ describe('KecoXmlParser', () => {
       expect(result.items).toEqual([])
     })
 
-    it('should parse NO_DATA (03) fixture as a successful empty page without throwing', () => {
+    it('COV-013: should parse NO_DATA (03) fixture as a successful empty page without throwing', () => {
       const xml = readFixture('status-nodata.xml')
       const result = parser.parseStatusPage(xml)
 
@@ -68,7 +99,7 @@ describe('KecoXmlParser', () => {
     })
   })
 
-  describe('parseInfoPage', () => {
+  describe('COV-012: parseInfoPage', () => {
     it('should parse success info XML with documented v1.25 fields', () => {
       const xml = readFixture('info-success.xml')
       const result = parser.parseInfoPage(xml)
@@ -130,7 +161,7 @@ describe('KecoXmlParser', () => {
     })
   })
 
-  describe('Error Fixture Result Code Mapping', () => {
+  describe('COV-014: Error Fixture Result Code Mapping', () => {
     it('error-05.xml -> TIMEOUT (retryable: true)', () => {
       const xml = readFixture('error-05.xml')
       expect(() => parser.parseStatusPage(xml)).toThrow(KecoProviderError)
@@ -288,7 +319,7 @@ describe('KecoXmlParser', () => {
     })
   })
 
-  describe('Malformed XML and boundary checks', () => {
+  describe('COV-014: Malformed XML and boundary checks', () => {
     it('should throw CONTRACT_CHANGED on empty or whitespace XML', () => {
       expect(() => parser.parseStatusPage('')).toThrow(KecoProviderError)
       try {
@@ -366,7 +397,32 @@ describe('KecoXmlParser', () => {
       }
     })
 
-    it('should throw CONTRACT_CHANGED when an item is missing required identity fields', () => {
+    it.each([
+      ['1foo', '10', '2'],
+      ['1', '10.5', '2'],
+      ['1', '10', '2bar'],
+    ])('pagination token %s/%s/%s의 일부 숫자만 잘라 수용하지 않는다', (pageNo, numOfRows, totalCount) => {
+      const xml = `
+        <response>
+          <header><resultCode>00</resultCode><resultMsg>OK</resultMsg></header>
+          <body>
+            <pageNo>${pageNo}</pageNo>
+            <numOfRows>${numOfRows}</numOfRows>
+            <totalCount>${totalCount}</totalCount>
+            <items></items>
+          </body>
+        </response>
+      `
+
+      expect(() => parser.parseStatusPage(xml)).toThrow(
+        expect.objectContaining({
+          failureKind: 'CONTRACT_CHANGED',
+          retryable: false,
+        }),
+      )
+    })
+
+    it('should throw CONTRACT_CHANGED when status item identity is missing', () => {
       const xml = readFixture('malformed-missing-identity.xml')
       expect(() => parser.parseStatusPage(xml)).toThrow(KecoProviderError)
       try {
@@ -376,6 +432,33 @@ describe('KecoXmlParser', () => {
         const error = err as KecoProviderError
         expect(error.failureKind).toBe('CONTRACT_CHANGED')
         expect(error.message).toContain('missing required identity fields')
+      }
+    })
+
+    it('COV-014: should throw CONTRACT_CHANGED when XML exceeds 50MB (MAX_XML_SIZE_BYTES)', () => {
+      const oversizedXml = '<response>'.padEnd(50 * 1024 * 1024 + 1, ' ')
+      expect(() => parser.parseStatusPage(oversizedXml)).toThrow(KecoProviderError)
+      try {
+        parser.parseStatusPage(oversizedXml)
+        fail('Expected parseStatusPage to throw')
+      } catch (err) {
+        expect(err).toBeInstanceOf(KecoProviderError)
+        const error = err as KecoProviderError
+        expect(error.failureKind).toBe('CONTRACT_CHANGED')
+        expect(error.retryable).toBe(false)
+        expect(error.message).toContain('Response exceeded maximum allowed size')
+      }
+
+      expect(() => parser.parseInfoPage(oversizedXml)).toThrow(KecoProviderError)
+      try {
+        parser.parseInfoPage(oversizedXml)
+        fail('Expected parseInfoPage to throw')
+      } catch (err) {
+        expect(err).toBeInstanceOf(KecoProviderError)
+        const error = err as KecoProviderError
+        expect(error.failureKind).toBe('CONTRACT_CHANGED')
+        expect(error.retryable).toBe(false)
+        expect(error.message).toContain('Response exceeded maximum allowed size')
       }
     })
   })

@@ -1,6 +1,6 @@
 /**
- * Redaction utility for external API URLs and sensitive strings.
- * Ensures ServiceKey or credentials never leak into logs, error messages, or cache keys.
+ * KECO API URL 및 민감 문자열 마스킹(redaction) 유틸리티.
+ * ServiceKey, 인증 토큰 등의 자격증명이 로그나 에러 메시지 등에 유출되지 않도록 처리한다.
  */
 
 const SERVICE_KEY_PATTERNS = [
@@ -15,7 +15,10 @@ const SERVICE_KEY_PATTERNS = [
 ]
 
 /**
- * Strips the entire query string from a URL, preserving the protocol, host, and path.
+ * URL에서 쿼리스트링 전체를 제거하고 프로토콜, 호스트, 경로만 보존한다.
+ *
+ * @param url 대상 URL 문자열 또는 URL 객체
+ * @returns 쿼리스트링이 제거된 URL 문자열
  */
 export function stripUrlQuery(url: string | URL): string {
   const str = typeof url === 'string' ? url : url.toString()
@@ -28,16 +31,20 @@ export function stripUrlQuery(url: string | URL): string {
 }
 
 /**
- * Redacts the complete query string from an external URL for logging/error reporting.
- * Preserves the path and completely removes all query parameters and secrets.
+ * 외부 URL에서 모든 쿼리 파라미터를 완전히 제거하여 안전한 로깅용 URL을 생성한다.
+ *
+ * @param url 대상 URL 문자열 또는 URL 객체
+ * @returns 쿼리스트링이 제거된 안전한 URL 문자열
  */
 export function redactFullUrlQuery(url: string | URL): string {
   return stripUrlQuery(url)
 }
 
 /**
- * Removes the complete external query string from a URL while also masking
- * credentials in arbitrary surrounding text.
+ * 외부 URL의 쿼리스트링을 제거하고 주변 텍스트의 민감 파라미터를 마스킹한다.
+ *
+ * @param url 대상 URL 문자열 또는 URL 객체
+ * @returns 마스킹 처리된 URL 문자열
  */
 export function redactExternalUrl(url: string | URL): string {
   let str = typeof url === 'string' ? url : url.toString()
@@ -46,8 +53,11 @@ export function redactExternalUrl(url: string | URL): string {
 }
 
 /**
- * Sanitizes sensitive parameters from arbitrary text or error messages.
- * When stripQueries is true, completely removes query strings from external URLs in text.
+ * 임의의 텍스트나 에러 메시지에서 민감한 인증 정보 및 쿼리스트링을 마스킹한다.
+ *
+ * @param text 마스킹 대상 원본 문자열
+ * @param options 마스킹 옵션 (stripQueries가 false가 아니면 URL 쿼리 전체 제거)
+ * @returns 마스킹 처리된 안전한 문자열
  */
 export function redactSensitiveText(text: string, options?: { stripQueries?: boolean }): string {
   const str = options?.stripQueries === false ? text : stripExternalUrlQueries(text)

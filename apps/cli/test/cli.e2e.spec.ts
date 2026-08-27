@@ -29,6 +29,18 @@ jest.mock('zido/common', () => {
           apiKey: 'dummy-google-key',
         },
       },
+      charger: {
+        sqlitePath: ':memory:',
+        ttlMs: 300_000,
+        timeoutMs: 8_000,
+        maxRetries: 1,
+        periodMinutes: 5,
+        defaultRegionCodes: [],
+        allowNationwideCollection: false,
+        source: 'keco',
+        endpoint: 'https://example.invalid/keco',
+        serviceKey: 'dummy-keco-key',
+      },
     },
   }
 })
@@ -207,6 +219,11 @@ describe('CLI E2E Contract Tests', () => {
       expect(geocodeHelp.exitCode).toBe(0)
       verifyHelpSections(geocodeHelp.stdout, true)
       expect(geocodeHelp.stdout).toContain('zido [--json] geocode <address>')
+
+      const chargerScopeHelp = await runCliWithSpies(['charger', 'scope', '--help'])
+      expect(chargerScopeHelp.exitCode).toBe(0)
+      verifyHelpSections(chargerScopeHelp.stdout, true)
+      expect(chargerScopeHelp.stdout).toContain('zido [--json] charger scope')
     })
 
     it('버전 옵션(-v, --version) 호출 시 package.json 버전과 일치하고 0으로 종료한다', async () => {
@@ -238,6 +255,7 @@ describe('CLI E2E Contract Tests', () => {
       expect(resolveCalled).toBe(false)
     })
   })
+
 
   describe('2. Usage validation (exit code 2)', () => {
     it('지원하지 않는 알 수 없는 커맨드를 입력하면 2로 종료한다', async () => {

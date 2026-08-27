@@ -68,6 +68,8 @@ export interface QueryCacheMetadata {
   observedAt: string
   createdAt: string
   updatedAt: string
+  /** Collection scope와 boundary provenance를 보존한 JSON metadata다. */
+  metadata: Record<string, unknown> | null
 }
 
 /**

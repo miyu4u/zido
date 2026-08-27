@@ -181,7 +181,7 @@ await server.connect(transport)
 
 이 MVP는 cache-aside 요청 수집만 지원하며 scheduler, collector worker, 다중 replica용 shared
 SQLite는 지원하지 않습니다. 운영 설정은 `CHARGER_SQLITE_PATH`, `CHARGER_CACHE_TTL_MS`,
-`CHARGER_PROVIDER_TIMEOUT_MS`, `CHARGER_PROVIDER_MAX_RETRIES`, `KECO_SERVICE_KEY`로 주입합니다.
+`KECO_API_TIMEOUT`, `CHARGER_PROVIDER_MAX_RETRIES`, `KECO_API_KEY`로 주입합니다.
 
 MCP tool과 CLI command는 이 service를 각자의 boundary에 맞게 호출합니다.
 

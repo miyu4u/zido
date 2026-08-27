@@ -92,7 +92,7 @@ function hardErr(msg = 'auth'): KecoProviderError {
 }
 
 // Default query options used in most tests
-const OPTS: GetSnapshotOptions = { ttlMs: 15 * 60 * 1000, source: 'keco' }
+const OPTS: GetSnapshotOptions = { ttlMs: 15 * 60 * 1000, source: 'keco', zcode: '11' }
 const QUERY_KEY = 'keco:all'
 
 // ---------------------------------------------------------------------------
@@ -206,7 +206,13 @@ describe('RefreshCoordinator – retry policy', () => {
     const provider = fakeProvider({ fetchInfoPage: fetchMock })
     const coordinator = new RefreshCoordinator(provider, store)
 
-    const opts: RefreshOptions = { queryKey: QUERY_KEY, source: 'keco', ttlMs: 900_000, maxRetries: 2 }
+    const opts: RefreshOptions = {
+      queryKey: QUERY_KEY,
+      source: 'keco',
+      ttlMs: 900_000,
+      maxRetries: 2,
+      nationwide: true,
+    }
     await expect(coordinator.refresh(opts)).rejects.toBeInstanceOf(KecoProviderError)
 
     // 1 initial attempt + 2 retries = 3 total calls
@@ -220,7 +226,13 @@ describe('RefreshCoordinator – retry policy', () => {
     const provider = fakeProvider({ fetchInfoPage: fetchMock })
     const coordinator = new RefreshCoordinator(provider, store)
 
-    const opts: RefreshOptions = { queryKey: QUERY_KEY, source: 'keco', ttlMs: 900_000, maxRetries: 3 }
+    const opts: RefreshOptions = {
+      queryKey: QUERY_KEY,
+      source: 'keco',
+      ttlMs: 900_000,
+      maxRetries: 3,
+      nationwide: true,
+    }
     await expect(coordinator.refresh(opts)).rejects.toBeInstanceOf(KecoProviderError)
 
     // Exactly 1 call — no retries for non-retryable
@@ -239,7 +251,13 @@ describe('RefreshCoordinator – retry policy', () => {
     })
     const coordinator = new RefreshCoordinator(provider, store)
 
-    const opts: RefreshOptions = { queryKey: QUERY_KEY, source: 'keco', ttlMs: 900_000, maxRetries: 2 }
+    const opts: RefreshOptions = {
+      queryKey: QUERY_KEY,
+      source: 'keco',
+      ttlMs: 900_000,
+      maxRetries: 2,
+      nationwide: true,
+    }
     await coordinator.refresh(opts)
 
     expect(fetchMock).toHaveBeenCalledTimes(2)
@@ -280,6 +298,22 @@ describe('ChargerService – getStation (opaque station ID)', () => {
       source: 'keco',
       operatorId: 'ME',
     })
+  })
+
+  it('status 조회는 local snapshot만 읽고 provider collection을 시작하지 않는다', async () => {
+    const opaqueId = makeOpaqueStationId('keco', 'ME', '28260005')
+    const store = fakeStore({
+      findStation: jest.fn().mockResolvedValue(stationRecord),
+    })
+    const provider = fakeProvider()
+    const service = new ChargerService(store, new RefreshCoordinator(provider, store))
+
+    const result = await service.getStatus(opaqueId)
+
+    expect(result).toBe(stationRecord)
+    expect(provider.fetchInfoPage).not.toHaveBeenCalled()
+    expect(provider.fetchStatusPage).not.toHaveBeenCalled()
+    expect(store.writeQuerySnapshot).not.toHaveBeenCalled()
   })
 
   it('throws McpException NOT_FOUND for an unknown opaque stationId', async () => {
@@ -377,7 +411,8 @@ describe('ChargerService – getStation (opaque station ID)', () => {
     const service = new ChargerService(store, new RefreshCoordinator(provider, store))
 
     await service.getSnapshot('region-query', {
-      ...OPTS,
+      ttlMs: OPTS.ttlMs,
+      source: 'keco',
       zcode: '28',
       periodMinutes: 7,
     })

@@ -23,6 +23,26 @@ describe('ChargingController', () => {
     expect(response.status).toHaveBeenCalledWith(400)
   })
 
+  it('repeated query parameter array를 INTERNAL_ERROR가 아닌 INVALID_ARGUMENT 400으로 거부한다', async () => {
+    const service = { searchNearby: jest.fn() }
+    const controller = new ChargingController(service as never)
+    const response = responseDouble()
+
+    const result = await controller.search(
+      {
+        lat: '37.5665',
+        lng: '126.978',
+        scopeMode: ['regions', 'auto'],
+      } as never,
+      undefined,
+      response,
+    )
+
+    expect(service.searchNearby).not.toHaveBeenCalled()
+    expect(response.status).toHaveBeenCalledWith(400)
+    expect(result).toMatchObject({ error: { code: 'INVALID_ARGUMENT' } })
+  })
+
   it('returns the stable success envelope and cache headers', async () => {
     const service = {
       searchNearby: jest.fn().mockResolvedValue({
@@ -31,13 +51,28 @@ describe('ChargingController', () => {
         matchedCount: 0,
         dataAsOf: '2026-08-14T00:00:00.000Z',
         sourceSummary: [],
+        scope: {
+          mode: 'REGIONS',
+          coverage: 'PARTIAL',
+          regionCodes: ['11'],
+          scopeSource: 'REGIONS',
+          collectionTriggered: false,
+          provenance: { version: 'test', source: 'fixture', effectiveDate: '2026-08-01' },
+        },
       }),
     }
     const controller = new ChargingController(service as never)
     const response = responseDouble()
 
     const result = await controller.search(
-      { lat: '37.5665', lng: '126.9780', radiusM: '3000', limit: '20' },
+      {
+        lat: '37.5665',
+        lng: '126.9780',
+        radiusM: '3000',
+        limit: '20',
+        scopeMode: 'regions',
+        regionCodes: '11,11',
+      },
       'request-1',
       response,
     )
@@ -51,9 +86,18 @@ describe('ChargingController', () => {
       status: undefined,
       freshness: undefined,
       source: undefined,
+      scope: {
+        mode: 'REGIONS',
+        regionCodes: ['11', '11'],
+        acknowledgeNationwide: undefined,
+      },
     })
     expect(result).toMatchObject({
-      meta: { requestId: 'request-1', dataAsOf: '2026-08-14T00:00:00.000Z' },
+      meta: {
+        requestId: 'request-1',
+        dataAsOf: '2026-08-14T00:00:00.000Z',
+        scope: expect.objectContaining({ coverage: 'PARTIAL', regionCodes: ['11'] }),
+      },
       data: { items: [], nextCursor: null, matchedCount: 0 },
     })
     expect(response.headers.get('X-Request-Id')).toBe('request-1')

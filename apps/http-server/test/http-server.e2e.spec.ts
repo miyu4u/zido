@@ -33,6 +33,18 @@ jest.mock('zido/common', () => {
           apiKey: '',
         },
       },
+      charger: {
+        sqlitePath: ':memory:',
+        ttlMs: 300_000,
+        timeoutMs: 8_000,
+        maxRetries: 1,
+        periodMinutes: 5,
+        defaultRegionCodes: [],
+        allowNationwideCollection: false,
+        source: 'keco',
+        endpoint: 'https://example.invalid/keco',
+        serviceKey: 'dummy-keco-key',
+      },
     },
   }
 })
@@ -195,5 +207,38 @@ describe('HTTP Server E2E', () => {
     expect(kakaoResolveSpy).toHaveBeenCalledWith('서울역')
 
     await request(app.getHttpServer()).delete('/mcp').set('MCP-Session-Id', sessionId).expect(204)
+  })
+
+  it('charging AUTO unresolved를 structured scope가 있는 409로 반환한다', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/v1/charging-stations')
+      .query({ lat: 35.1796, lng: 129.0756, radiusM: 3_000 })
+      .expect(409)
+
+    expect(response.body).toMatchObject({
+      error: { code: 'COLLECTION_SCOPE_REQUIRED' },
+      scope: {
+        mode: 'AUTO',
+        coverage: 'UNRESOLVED',
+        regionCodes: [],
+        collectionTriggered: false,
+      },
+    })
+  })
+
+  it('charging nationwide를 운영 allow가 없으면 provider 호출 전에 403으로 반환한다', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/v1/charging-stations')
+      .query({
+        lat: 37.556,
+        lng: 126.972,
+        scopeMode: 'nationwide',
+        acknowledgeNationwide: 'true',
+      })
+      .expect(403)
+
+    expect(response.body).toMatchObject({
+      error: { code: 'NATIONWIDE_NOT_ALLOWED' },
+    })
   })
 })

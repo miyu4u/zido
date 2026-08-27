@@ -1,11 +1,11 @@
 # Zido
 
-Zido는 Kakao, Naver, Google 지도 API를 공통 interface로 묶어 장소 검색과 geocoding을 제공하는 MCP 및 CLI application입니다.
+Zido는 Kakao, Naver, Google 지도 API를 공통 interface로 묶어 장소 검색과 geocoding을 제공하고, KECO 지역 범위별 충전소 snapshot을 조회하는 MCP 및 CLI application입니다.
 
 동일한 place domain을 두 가지 방식으로 사용할 수 있습니다.
 
-- **MCP**: AI client에서 `place_resolve`, `place_search_nearby`, `place_geocode` tool 사용
-- **CLI**: terminal에서 같은 기능을 `resolve`, `nearby`, `geocode` command로 직접 실행
+- **MCP**: AI client에서 place tool과 `charger_search_nearby`, `charger_status` tool 사용
+- **CLI**: terminal에서 place command와 `charger nearby`, `charger status`, `charger scope` command를 직접 실행
 
 ## 목적
 
@@ -52,6 +52,9 @@ AI Agent 시스템은 지역에 대한 검색을 요청하면 해당 지역의 �
 | 키워드로 단일 장소 검색 | `place_resolve` | `resolve` |
 | 중심 좌표 주변 장소 검색 | `place_search_nearby` | `nearby` |
 | 주소를 좌표로 변환 | `place_geocode` | `geocode` |
+| 범위가 명시된 충전소 주변 검색 | `charger_search_nearby` | `charger nearby` |
+| 저장된 충전소 상태 조회 | `charger_status` | `charger status` |
+| 충전소 수집 범위 preview | `charger_scope_preview` | `charger scope` |
 
 Zido는 `PROVIDER_ORDER`에 지정된 순서로 provider를 호출합니다. API key가 없는 provider는 제외하며, 호출이 실패하면 다음 provider로 자동 fallback합니다.
 
@@ -82,6 +85,12 @@ GOOGLE_API_KEY=your_google_api_key
 
 # 앞에 있는 provider부터 시도
 PROVIDER_ORDER=kakao,naver,google
+
+# KECO 2자리 시·도 code를 comma-separated set으로 지정
+CHARGER_DEFAULT_REGION_CODES=11
+
+# 전국 수집은 기본 비활성화
+CHARGER_ALLOW_NATIONWIDE_COLLECTION=false
 ```
 
 ### Provider credential
@@ -89,6 +98,12 @@ PROVIDER_ORDER=kakao,naver,google
 - **Kakao**: [Kakao Developers](https://developers.kakao.com/console/app)에서 application을 만들고 Local API를 활성화한 뒤 REST API key를 발급합니다.
 - **Naver**: [Naver Developers](https://developers.naver.com/apps/#/register)에서 application을 등록하고 검색 API의 Client ID와 Client Secret을 발급합니다.
 - **Google**: [Google Cloud Console](https://console.cloud.google.com/)에서 Places API와 Geocoding API를 활성화하고 API key를 발급합니다.
+
+### 충전소 collection scope
+
+충전소 주변 검색은 `AUTO`, `REGIONS`, `NATIONWIDE` scope를 사용합니다. `AUTO`가 검색 원 전체의 지역 집합을 증명하지 못하면 provider를 호출하지 않고 `COLLECTION_SCOPE_REQUIRED`를 반환합니다. `REGIONS`는 명시한 지역만 수집하므로 검색 원 일부가 빠질 때 결과의 coverage가 `PARTIAL`로 표시됩니다.
+
+전국 수집은 `CHARGER_ALLOW_NATIONWIDE_COLLECTION=true`와 호출별 `acknowledgeNationwide: true`가 모두 있어야 실행됩니다. 설정 또는 acknowledgement 중 하나라도 없으면 KECO 요청 전에 거부됩니다.
 
 ## MCP
 
