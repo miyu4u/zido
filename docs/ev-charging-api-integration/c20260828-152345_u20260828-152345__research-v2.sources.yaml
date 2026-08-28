@@ -1,0 +1,61 @@
+sources:
+  - id: "S-001"
+    title: "한국환경공단_전기자동차 충전소 정보"
+    namespace: "web"
+    url_or_path: "https://www.data.go.kr/data/15076352/openapi.do"
+    locator: "기본 정보; 이용 조건 및 라이선스; 참고문서; 활용 정보; 요청변수; 출력결과; 오픈API 에러코드 안내"
+    observed_at: "2026-08-28T15:23:45Z"
+    content_hash: "unknown"
+    source_type: "official_document"
+    publisher: "공공데이터포털 / 한국환경공단"
+    published_at: "2021-01-28"
+    accessed_at: "2026-08-28T15:23:45Z"
+    reliability_note: >-
+      high — authority: 제공기관의 공식 공공데이터 상세 페이지;
+      directness: 직접 확인; recency: 2026-07-21 수정;
+      independence: primary.
+    claims:
+      - "C-001"
+      - "C-002"
+      - "C-003"
+      - "C-005"
+    local_sensitivity: "not_local"
+
+  - id: "S-002"
+    title: "한국환경공단 전기자동차 충전소 정보 OpenAPI 활용가이드 v1.25"
+    namespace: "web"
+    url_or_path: "https://www.data.go.kr/cmm/cmm/fileDownload.do?atchFileId=FILE_000000003680003&fileDetailSn=1"
+    locator: "개정 이력; 서비스 명세; getChargerInfo; getChargerStatus; 공통 코드"
+    observed_at: "2026-08-28T15:23:45Z"
+    content_hash: "unknown"
+    source_type: "official_document"
+    publisher: "한국환경공단 / 공공데이터포털"
+    published_at: "2026-07-01"
+    accessed_at: "2026-08-28T15:23:45Z"
+    reliability_note: >-
+      high — authority: 제공기관 공식 상세 페이지의 첨부 활용가이드;
+      directness: DOCX 본문을 직접 확인; recency: v1.25, 2026-07-01;
+      independence: primary. 문서 내부와 상세 페이지 사이의 상충은 본문에 명시했다.
+    claims:
+      - "C-001"
+      - "C-003"
+      - "C-004"
+    local_sensitivity: "not_local"
+
+  - id: "S-003"
+    title: "공공데이터포털 API 폐기·변경 안내"
+    namespace: "web"
+    url_or_path: "https://www.data.go.kr/bbs/ntc/selectNotice.do?originId=NOTICE_0000000002460"
+    locator: "I. 전국전기차충전소표준데이터; 폐기사유; 호출 URL; 대체 API"
+    observed_at: "2026-08-28T15:23:45Z"
+    content_hash: "unknown"
+    source_type: "official_document"
+    publisher: "공공데이터포털"
+    published_at: "unknown"
+    accessed_at: "2026-08-28T15:23:45Z"
+    reliability_note: >-
+      high — authority: 공식 포털 변경 공지; directness: 직접 확인;
+      recency: 게시일이 본문에 노출되지 않음; independence: primary.
+    claims:
+      - "C-005"
+    local_sensitivity: "not_local"
