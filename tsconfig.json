@@ -23,6 +23,7 @@
     "noImplicitAny": true,
     "strictBindCallApply": true,
     "noFallthroughCasesInSwitch": true,
+    "strictPropertyInitialization": false,
     "paths": {
       "zido/common": [
         "./libs/common/src"
