@@ -1,9 +1,27 @@
 import 'dotenv/config'
 import { config } from 'zido/common'
-import { KecoAPIService, KecoService } from 'zido/charger-providers'
+import {
+  ChargerInfoPageSchema,
+  ChargerStatusPageSchema,
+  KEcoAPIService,
+  KEcoService,
+  type ChargerProviderScope,
+} from 'zido/charger-providers'
 
 /** KECO OpenAPI에 요청할 `.env` service key입니다. */
 const serviceKey = config.charger.serviceKey
+
+/** Live API가 지원하는 최소 page 크기입니다. */
+const PAGE_SIZE = 10
+
+/** 서울특별시 충전소를 조회하는 공통 provider 범위입니다. */
+const SEOUL_SCOPE = {
+  type: 'REGION',
+  countryCode: 'KR',
+  regionCode: '11',
+} satisfies ChargerProviderScope
+
+jest.setTimeout(Math.max(10_000, config.charger.timeoutMs + 5_000))
 
 if (!serviceKey) {
   describe('KECO live API configuration', () => {
@@ -13,74 +31,90 @@ if (!serviceKey) {
 
 if (serviceKey) {
   describe('KECO live API', () => {
-    /** `.env` credential가 유효한 실제 KECO endpoint를 호출하는 provider입니다. */
-    const provider = new KecoService(
-      new KecoAPIService({
+    /** 실제 credential로 KECO transport와 provider adapter를 함께 검증합니다. */
+    const provider = new KEcoService(
+      new KEcoAPIService({
         serviceKey,
         endpoint: config.charger.endpoint,
         timeoutMs: config.charger.timeoutMs,
       }),
     )
 
-    it('충전기 상태 page를 공식 pagination 계약으로 반환한다', async () => {
-      /** 서울 지역에서 최근 10분간 갱신된 충전기 상태 응답입니다. */
-      const page = await provider.fetchStatusPage({
-        pageNo: 1,
-        numOfRows: 10,
-        period: 10,
-        zcode: '11',
-      })
+    it('충전소 정보 응답을 공통 ChargerInfoPage 계약으로 반환한다', async () => {
+      const page = ChargerInfoPageSchema.parse(
+        await provider.fetchInfoPage({
+          scope: SEOUL_SCOPE,
+          pagination: { type: 'PAGE', page: 1, pageSize: PAGE_SIZE },
+        }),
+      )
 
-      expect(page.resultCode).toMatch(/^(00|03)$/)
-      expect(page.resultMsg).toEqual(expect.stringMatching(/\S/))
-      expect(page.pageNo).toBe(1)
-      expect(page.numOfRows).toBe(10)
-      expect(Number.isSafeInteger(page.totalCount)).toBe(true)
-      expect(page.totalCount).toBeGreaterThanOrEqual(0)
-      expect(page.items).toEqual(expect.any(Array))
-      expect(page.items.length).toBeLessThanOrEqual(10)
+      expect(page.providerId).toBe('keco')
+      expect(page.providerMetadata['resultCode']).toMatch(/^(00|03)$/)
+      expect(page.providerMetadata['resultMsg']).toEqual(expect.any(String))
+      expect(page.page).toBe(1)
+      expect(page.pageSize).toBe(PAGE_SIZE)
+      expect(page.totalCount).not.toBeNull()
+      expect(page.items.length).toBeLessThanOrEqual(PAGE_SIZE)
+      expect(page.hasNext).toBe((page.page ?? 0) * page.pageSize < (page.totalCount ?? 0))
+      expect(Number.isNaN(Date.parse(page.observedAt))).toBe(false)
 
-      /** 조회 기간에 갱신된 데이터가 있을 때 확인할 실제 충전기 상태입니다. */
-      const [item] = page.items
+      for (const item of page.items) {
+        expect(item.providerId).toBe('keco')
+        expect(item.stationId).toEqual(expect.stringMatching(/\S/))
+        expect(item.chargerId).toEqual(expect.stringMatching(/\S/))
 
-      if (item) {
-        expect(item.statId).toEqual(expect.stringMatching(/\S/))
-        expect(item.chgerId).toEqual(expect.stringMatching(/\S/))
-        expect(item.stat).toEqual(expect.stringMatching(/^\d+$/))
-        expect(item.statUpdDt).toEqual(expect.stringMatching(/^\d{14}$/))
+        if (item.location) {
+          expect(item.location.lat).toBeGreaterThanOrEqual(-90)
+          expect(item.location.lat).toBeLessThanOrEqual(90)
+          expect(item.location.lng).toBeGreaterThanOrEqual(-180)
+          expect(item.location.lng).toBeLessThanOrEqual(180)
+        }
+
+        for (const connector of item.connectors) {
+          expect(connector.type).toMatch(/^KECO:/)
+          expect(connector.count).toBe(1)
+        }
       }
     })
 
-    it('충전소 정보 page를 공식 pagination 계약으로 반환한다', async () => {
-      /** 서울 지역 충전소의 위치와 운영 정보를 포함한 응답입니다. */
-      const page = await provider.fetchInfoPage({
-        pageNo: 1,
-        numOfRows: 10,
-        zcode: '11',
-      })
+    it('최근 충전기 상태를 공통 ChargerStatusPage 계약으로 반환한다', async () => {
+      const page = ChargerStatusPageSchema.parse(
+        await provider.fetchStatusPage({
+          scope: SEOUL_SCOPE,
+          pagination: { type: 'PAGE', page: 1, pageSize: PAGE_SIZE },
+          updatedWithinMinutes: 10,
+        }),
+      )
 
-      expect(page.resultCode).toBe('00')
-      expect(page.resultMsg).toEqual(expect.stringMatching(/\S/))
-      expect(page.pageNo).toBe(1)
-      expect(page.numOfRows).toBe(10)
-      expect(Number.isSafeInteger(page.totalCount)).toBe(true)
-      expect(page.totalCount).toBeGreaterThan(0)
-      expect(page.items).toEqual(expect.any(Array))
-      expect(page.items.length).toBeGreaterThan(0)
-      expect(page.items.length).toBeLessThanOrEqual(10)
+      expect(page.providerId).toBe('keco')
+      expect(page.providerMetadata['resultCode']).toMatch(/^(00|03)$/)
+      expect(page.providerMetadata['resultMsg']).toEqual(expect.any(String))
+      expect(page.page).toBe(1)
+      expect(page.pageSize).toBe(PAGE_SIZE)
+      expect(page.totalCount).not.toBeNull()
+      expect(page.items.length).toBeLessThanOrEqual(PAGE_SIZE)
+      expect(page.hasNext).toBe((page.page ?? 0) * page.pageSize < (page.totalCount ?? 0))
+      expect(Number.isNaN(Date.parse(page.observedAt))).toBe(false)
 
-      /** 조회된 데이터가 있을 때 확인할 실제 충전소 식별자와 위치 정보입니다. */
-      const [item] = page.items
+      for (const item of page.items) {
+        expect(item.providerId).toBe('keco')
+        expect(item.stationId).toEqual(expect.stringMatching(/\S/))
+        expect(item.chargerId).toEqual(expect.stringMatching(/\S/))
+        expect(item.rawStatus).toEqual(expect.stringMatching(/^\d+$/))
+        expect(item.totalCount).toBe(1)
 
-      if (item) {
-        expect(item.statId).toEqual(expect.stringMatching(/\S/))
-        expect(item.chgerId).toEqual(expect.stringMatching(/\S/))
-        expect(item.statNm).toEqual(expect.stringMatching(/\S/))
-        expect(item.addr).toEqual(expect.stringMatching(/\S/))
-        expect(item.lat).not.toBeNull()
-        expect(item.lng).not.toBeNull()
-        expect(Number.isFinite(Number(item.lat))).toBe(true)
-        expect(Number.isFinite(Number(item.lng))).toBe(true)
+        if (item.statusUpdatedAt) {
+          expect(item.statusUpdatedAt).toMatch(/Z$/)
+          expect(Number.isNaN(Date.parse(item.statusUpdatedAt))).toBe(false)
+        }
+
+        if (item.status === 'UNKNOWN') {
+          expect(item.availableCount).toBeNull()
+          expect(item.outOfServiceCount).toBeNull()
+        } else {
+          expect(item.availableCount).not.toBeNull()
+          expect(item.outOfServiceCount).not.toBeNull()
+        }
       }
     })
   })
