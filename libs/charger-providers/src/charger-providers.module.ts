@@ -1,38 +1,31 @@
 import { Module } from '@nestjs/common'
-import { config, ChargerTelemetry } from 'zido/common'
-import { KecoAPIService } from './keco/keco-api.service'
-import { KecoService } from './keco/keco.service'
+import { ChargerTelemetry, config } from 'zido/common'
+import { CHARGER_PROVIDERS, type ChargerProviderContract } from './charger-provider.contract'
+import { KEcoAPIService } from './k-eco/k-eco-api.service'
+import { KEcoService } from './k-eco/k-eco.service'
 
 /**
- * 전기차 충전기 공급자 연동을 담당하는 NestJS 모듈.
- * KecoAPIService와 KecoService 프로바이더를 등록 및 노출한다.
+ * 충전소 provider adapter와 원천 API client를 등록한다.
  */
 @Module({
   providers: [
+    ChargerTelemetry,
     {
-      provide: ChargerTelemetry,
-      useFactory: () => new ChargerTelemetry(),
-    },
-    {
-      provide: KecoAPIService,
-      useFactory: () => {
-        return new KecoAPIService({
-          serviceKey: config.charger.serviceKey || '__UNCONFIGURED__',
+      provide: KEcoAPIService,
+      useFactory: () =>
+        new KEcoAPIService({
+          serviceKey: config.charger.serviceKey,
           endpoint: config.charger.endpoint,
           timeoutMs: config.charger.timeoutMs,
-        })
-      },
+        }),
     },
+    KEcoService,
     {
-      provide: KecoService,
-      useFactory: (apiService: KecoAPIService, telemetry?: ChargerTelemetry) => {
-        return new KecoService(apiService, {
-          telemetry,
-        })
-      },
-      inject: [KecoAPIService, { token: ChargerTelemetry, optional: true }],
+      provide: CHARGER_PROVIDERS,
+      useFactory: (keco: KEcoService): ChargerProviderContract[] => [keco],
+      inject: [KEcoService],
     },
   ],
-  exports: [KecoAPIService, KecoService, ChargerTelemetry],
+  exports: [CHARGER_PROVIDERS, KEcoAPIService, KEcoService, ChargerTelemetry],
 })
 export class ChargerProvidersModule {}

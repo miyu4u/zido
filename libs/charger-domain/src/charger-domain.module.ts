@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common'
 import { ChargerStorageModule } from 'zido/charger-storage'
-import { ChargerProvidersModule, KecoService } from 'zido/charger-providers'
+import { ChargerProvidersModule, KEcoService } from 'zido/charger-providers'
 import { ChargerSnapshotStore } from 'zido/charger-storage'
 import { RefreshCoordinator } from './refresh-coordinator'
 import { ChargerService } from './charger-service'
@@ -14,9 +14,8 @@ import { DeterministicLocalBoundaryResolver } from './collection-scope'
   providers: [
     {
       provide: RefreshCoordinator,
-      useFactory: (provider: KecoService, store: ChargerSnapshotStore) =>
-        new RefreshCoordinator(provider, store),
-      inject: [KecoService, ChargerSnapshotStore],
+      useFactory: (provider: KEcoService, store: ChargerSnapshotStore) => new RefreshCoordinator(provider, store),
+      inject: [KEcoService, ChargerSnapshotStore],
     },
     {
       provide: ChargerService,

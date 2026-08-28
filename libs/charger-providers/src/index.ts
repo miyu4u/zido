@@ -1,2 +1,3 @@
+export * from './charger-provider.contract'
 export * from './charger-providers.module'
-export * from './keco'
+export * from './k-eco'

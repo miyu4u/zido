@@ -16,9 +16,8 @@
 import { ChargerService, GetSnapshotOptions } from './charger-service'
 import { RefreshCoordinator, RefreshOptions } from './refresh-coordinator'
 import type { ChargerSnapshotStore, QuerySnapshotBundle } from 'zido/charger-storage'
-import type { IKecoProvider, ProviderPage, KecoStatusItem, KecoInfoItem } from 'zido/charger-providers'
-import { KecoProviderError } from 'zido/charger-providers'
-import { McpException } from 'zido/common'
+import type { ChargerProviderContract } from 'zido/charger-providers'
+import { KecoUpstreamProviderException } from 'zido/charger-providers'
 import { makeOpaqueStationId } from './freshness'
 import type { ChargerStationRecord } from './contracts'
 
@@ -41,15 +40,17 @@ function makeBundle(overrides: Partial<QuerySnapshotBundle> = {}): QuerySnapshot
 }
 
 /** Empty but valid provider page */
-function emptyPage<T>(overrides: Partial<ProviderPage<T>> = {}): ProviderPage<T> {
+function emptyPage() {
   return {
-    resultCode: '00',
-    resultMsg: 'OK',
-    pageNo: 1,
-    numOfRows: 9999,
+    providerId: 'keco',
+    page: 1,
+    pageSize: 9_999,
     totalCount: 0,
+    nextCursor: null,
+    hasNext: false,
+    observedAt: '2026-08-29T00:00:00.000Z',
+    providerMetadata: {},
     items: [],
-    ...overrides,
   }
 }
 
@@ -70,25 +71,39 @@ function fakeStore(
   } as unknown as jest.Mocked<ChargerSnapshotStore>
 }
 
-/** Builds a fake IKecoProvider. */
+/** Builds a fake charger provider. */
 function fakeProvider(
   overrides: Partial<{ fetchStatusPage: jest.Mock; fetchInfoPage: jest.Mock }> = {},
-): jest.Mocked<IKecoProvider> {
+): jest.Mocked<ChargerProviderContract> & { fetchStatusPage: jest.Mock } {
   return {
-    fetchStatusPage: jest.fn().mockResolvedValue(emptyPage<KecoStatusItem>()),
-    fetchInfoPage: jest.fn().mockResolvedValue(emptyPage<KecoInfoItem>()),
+    providerId: 'keco',
+    capabilities: {
+      scopes: ['NATIONWIDE', 'REGION'],
+      pagination: ['PAGE'],
+      status: 'DYNAMIC',
+      connectorDetails: true,
+      powerDetails: true,
+      tariffs: false,
+      limits: {
+        pageSize: { min: 10, max: 9_999 },
+        statusUpdatedWithinMinutes: { min: 1, max: 10 },
+        radiusMetersMax: null,
+      },
+    },
+    fetchStatusPage: jest.fn().mockResolvedValue(emptyPage()),
+    fetchInfoPage: jest.fn().mockResolvedValue(emptyPage()),
     ...overrides,
-  } as unknown as jest.Mocked<IKecoProvider>
+  } as jest.Mocked<ChargerProviderContract> & { fetchStatusPage: jest.Mock }
 }
 
 /** Retryable provider error */
-function retryableErr(msg = 'timeout'): KecoProviderError {
-  return new KecoProviderError(msg, { failureKind: 'TIMEOUT', retryable: true })
+function retryableErr(msg = 'timeout'): KecoUpstreamProviderException {
+  return new KecoUpstreamProviderException(msg, { failureKind: 'TIMEOUT', retryable: true })
 }
 
 /** Non-retryable provider error */
-function hardErr(msg = 'auth'): KecoProviderError {
-  return new KecoProviderError(msg, { failureKind: 'AUTHENTICATION', retryable: false })
+function hardErr(msg = 'auth'): KecoUpstreamProviderException {
+  return new KecoUpstreamProviderException(msg, { failureKind: 'AUTHENTICATION', retryable: false })
 }
 
 // Default query options used in most tests
@@ -213,7 +228,7 @@ describe('RefreshCoordinator – retry policy', () => {
       maxRetries: 2,
       nationwide: true,
     }
-    await expect(coordinator.refresh(opts)).rejects.toBeInstanceOf(KecoProviderError)
+    await expect(coordinator.refresh(opts)).rejects.toBeInstanceOf(KecoUpstreamProviderException)
 
     // 1 initial attempt + 2 retries = 3 total calls
     expect(fetchMock).toHaveBeenCalledTimes(3)
@@ -233,7 +248,7 @@ describe('RefreshCoordinator – retry policy', () => {
       maxRetries: 3,
       nationwide: true,
     }
-    await expect(coordinator.refresh(opts)).rejects.toBeInstanceOf(KecoProviderError)
+    await expect(coordinator.refresh(opts)).rejects.toBeInstanceOf(KecoUpstreamProviderException)
 
     // Exactly 1 call — no retries for non-retryable
     expect(fetchMock).toHaveBeenCalledTimes(1)
@@ -241,10 +256,7 @@ describe('RefreshCoordinator – retry policy', () => {
 
   it('succeeds on second attempt when first attempt is retryable', async () => {
     const store = fakeStore()
-    const fetchMock = jest
-      .fn()
-      .mockRejectedValueOnce(retryableErr('flake'))
-      .mockResolvedValue(emptyPage<KecoInfoItem>())
+    const fetchMock = jest.fn().mockRejectedValueOnce(retryableErr('flake')).mockResolvedValue(emptyPage())
     const provider = fakeProvider({
       fetchInfoPage: fetchMock,
       fetchStatusPage: jest.fn().mockResolvedValue(emptyPage()),
@@ -391,9 +403,12 @@ describe('ChargerService – getStation (opaque station ID)', () => {
   it('maps a cold provider rate limit to the stable 429 contract', async () => {
     const store = fakeStore({ readQuerySnapshot: jest.fn().mockResolvedValue(null) })
     const provider = fakeProvider({
-      fetchInfoPage: jest
-        .fn()
-        .mockRejectedValue(new KecoProviderError('provider detail', { failureKind: 'RATE_LIMITED', retryable: false })),
+      fetchInfoPage: jest.fn().mockRejectedValue(
+        new KecoUpstreamProviderException('provider detail', {
+          failureKind: 'RATE_LIMITED',
+          retryable: false,
+        }),
+      ),
     })
     const service = new ChargerService(store, new RefreshCoordinator(provider, store))
 
@@ -417,8 +432,15 @@ describe('ChargerService – getStation (opaque station ID)', () => {
       periodMinutes: 7,
     })
 
-    expect(provider.fetchInfoPage).toHaveBeenCalledWith(expect.objectContaining({ zcode: '28' }))
-    expect(provider.fetchStatusPage).toHaveBeenCalledWith(expect.objectContaining({ zcode: '28', period: 7 }))
+    expect(provider.fetchInfoPage).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: { type: 'REGION', countryCode: 'KR', regionCode: '28' } }),
+    )
+    expect(provider.fetchStatusPage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: { type: 'REGION', countryCode: 'KR', regionCode: '28' },
+        updatedWithinMinutes: 7,
+      }),
+    )
   })
 
   it('round-trips opaque IDs with null operatorId', async () => {

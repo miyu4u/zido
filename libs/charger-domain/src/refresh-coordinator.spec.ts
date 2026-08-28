@@ -1,10 +1,82 @@
 import type { ChargerSnapshotStore } from 'zido/charger-storage'
-import type { IKecoProvider, KecoInfoItem, KecoStatusItem, ProviderPage } from 'zido/charger-providers'
-import { KecoProviderError } from 'zido/charger-providers'
+import type { ChargerInfoRecord, ChargerProviderContract, ChargerStatusRecord } from 'zido/charger-providers'
+import { KecoUpstreamProviderException } from 'zido/charger-providers'
 import { RefreshCoordinator } from './refresh-coordinator'
 
-function page<T>(pageNo: number, totalCount: number, items: T[]): ProviderPage<T> {
-  return { resultCode: '00', resultMsg: 'OK', pageNo, numOfRows: 1, totalCount, items }
+const observedAt = '2026-08-29T00:00:00.000Z'
+const capabilities: ChargerProviderContract['capabilities'] = {
+  scopes: ['NATIONWIDE', 'REGION'],
+  pagination: ['PAGE'],
+  status: 'DYNAMIC',
+  connectorDetails: true,
+  powerDetails: true,
+  tariffs: false,
+  limits: {
+    pageSize: { min: 10, max: 9_999 },
+    statusUpdatedWithinMinutes: { min: 1, max: 10 },
+    radiusMetersMax: null,
+  },
+}
+
+function page<T>(pageNumber: number, totalCount: number, items: T[]) {
+  return {
+    providerId: 'keco',
+    page: pageNumber,
+    pageSize: 1,
+    totalCount,
+    nextCursor: null,
+    hasNext: pageNumber < totalCount,
+    observedAt,
+    providerMetadata: {},
+    items,
+  }
+}
+
+function fakeProvider(
+  overrides: Partial<Pick<ChargerProviderContract, 'fetchInfoPage' | 'fetchStatusPage'>> = {},
+): jest.Mocked<ChargerProviderContract> {
+  return {
+    providerId: 'keco',
+    capabilities,
+    fetchInfoPage: jest.fn().mockResolvedValue(page(1, 0, [])),
+    fetchStatusPage: jest.fn().mockResolvedValue(page(1, 0, [])),
+    ...overrides,
+  } as jest.Mocked<ChargerProviderContract>
+}
+
+function infoRecord(overrides: Partial<ChargerInfoRecord> = {}): ChargerInfoRecord {
+  return {
+    providerId: 'keco',
+    operatorId: 'ME',
+    operatorName: '환경부',
+    stationId: 'ST-1',
+    chargerId: '01',
+    name: '첫 충전소',
+    address: '서울',
+    addressDetail: null,
+    location: { lat: 37.5, lng: 127 },
+    access: 'PUBLIC',
+    operatingHours: null,
+    connectors: [],
+    ...overrides,
+  }
+}
+
+function statusRecord(overrides: Partial<ChargerStatusRecord> = {}): ChargerStatusRecord {
+  return {
+    providerId: 'keco',
+    operatorId: 'ME',
+    stationId: 'ST-1',
+    chargerId: '01',
+    status: 'AVAILABLE',
+    rawStatus: '2',
+    statusUpdatedAt: null,
+    observedAt,
+    availableCount: 1,
+    outOfServiceCount: 0,
+    totalCount: 1,
+    ...overrides,
+  }
 }
 
 function store(): jest.Mocked<ChargerSnapshotStore> {
@@ -22,42 +94,31 @@ function store(): jest.Mocked<ChargerSnapshotStore> {
 
 describe('RefreshCoordinator', () => {
   it('info/status multi-page를 수집해 기존 snapshot payload로 mapping한다', async () => {
-    const infoItems = [
-      {
-        busiId: 'ME',
-        statId: 'ST-1',
-        statNm: '첫 충전소',
-        addr: '서울',
-        address: null,
-        lat: 37.5,
-        lng: 127.0,
-        limitYn: 'N',
-      },
-      {
-        busiId: 'ME',
-        statId: 'ST-2',
-        statNm: '둘째 충전소',
-        addr: null,
-        address: '인천',
-        lat: null,
-        lng: null,
-        limitYn: 'Y',
-      },
-    ] as KecoInfoItem[]
-    const statusItems = [
-      { busiId: 'ME', statId: 'ST-1', chgerId: '01', stat: '2', statUpdDt: null },
-      { busiId: 'ME', statId: 'ST-2', chgerId: '02', stat: '3', statUpdDt: null },
-    ] as KecoStatusItem[]
-    const provider: jest.Mocked<IKecoProvider> = {
+    const secondInfo = infoRecord({
+      stationId: 'ST-2',
+      chargerId: '02',
+      name: '둘째 충전소',
+      address: '인천',
+      location: null,
+      access: 'RESTRICTED',
+    })
+    const secondStatus = statusRecord({
+      stationId: 'ST-2',
+      chargerId: '02',
+      status: 'CHARGING',
+      rawStatus: '3',
+      availableCount: 0,
+    })
+    const provider = fakeProvider({
       fetchInfoPage: jest
         .fn()
-        .mockResolvedValueOnce(page(1, 2, [infoItems[0]]))
-        .mockResolvedValueOnce(page(2, 2, [infoItems[1]])),
+        .mockResolvedValueOnce(page(1, 2, [infoRecord()]))
+        .mockResolvedValueOnce(page(2, 2, [secondInfo])),
       fetchStatusPage: jest
         .fn()
-        .mockResolvedValueOnce(page(1, 2, [statusItems[0]]))
-        .mockResolvedValueOnce(page(2, 2, [statusItems[1]])),
-    }
+        .mockResolvedValueOnce(page(1, 2, [statusRecord()]))
+        .mockResolvedValueOnce(page(2, 2, [secondStatus])),
+    })
     const snapshotStore = store()
 
     await new RefreshCoordinator(provider, snapshotStore).refresh({
@@ -68,11 +129,15 @@ describe('RefreshCoordinator', () => {
       ttlMs: 900_000,
     })
 
-    expect(provider.fetchInfoPage).toHaveBeenNthCalledWith(2, expect.objectContaining({ pageNo: 2, zcode: '11' }))
-    expect(provider.fetchStatusPage).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({ pageNo: 2, period: 7, zcode: '11' }),
-    )
+    expect(provider.fetchInfoPage).toHaveBeenNthCalledWith(2, {
+      scope: { type: 'REGION', countryCode: 'KR', regionCode: '11' },
+      pagination: { type: 'PAGE', page: 2, pageSize: 9_999 },
+    })
+    expect(provider.fetchStatusPage).toHaveBeenNthCalledWith(2, {
+      scope: { type: 'REGION', countryCode: 'KR', regionCode: '11' },
+      pagination: { type: 'PAGE', page: 2, pageSize: 9_999 },
+      updatedWithinMinutes: 7,
+    })
     expect(snapshotStore.writeQuerySnapshot).toHaveBeenCalledWith(
       expect.objectContaining({
         queryKey: 'keco:11',
@@ -82,34 +147,18 @@ describe('RefreshCoordinator', () => {
           expect.objectContaining({ stationId: 'ST-2', address: '인천', access: 'RESTRICTED' }),
         ],
         chargers: [
-          expect.objectContaining({ stationId: 'ST-1', chargerId: '01', rawStatus: '2' }),
-          expect.objectContaining({ stationId: 'ST-2', chargerId: '02', rawStatus: '3' }),
+          expect.objectContaining({ stationId: 'ST-1', chargerId: '01', normalizedStatus: 'AVAILABLE' }),
+          expect.objectContaining({ stationId: 'ST-2', chargerId: '02', normalizedStatus: 'CHARGING' }),
         ],
       }),
     )
   })
 
   it('다중 region payload를 identity로 dedupe한 뒤 snapshot을 한 번만 atomic write한다', async () => {
-    const duplicatedInfo = {
-      busiId: 'ME',
-      statId: 'ST-1',
-      statNm: '경계 충전소',
-      addr: '서울 경기 경계',
-      lat: 37.5,
-      lng: 126.8,
-      limitYn: 'N',
-    } as KecoInfoItem
-    const duplicatedStatus = {
-      busiId: 'ME',
-      statId: 'ST-1',
-      chgerId: '01',
-      stat: '2',
-      statUpdDt: null,
-    } as KecoStatusItem
-    const provider: jest.Mocked<IKecoProvider> = {
-      fetchInfoPage: jest.fn().mockResolvedValue(page(1, 1, [duplicatedInfo])),
-      fetchStatusPage: jest.fn().mockResolvedValue(page(1, 1, [duplicatedStatus])),
-    }
+    const provider = fakeProvider({
+      fetchInfoPage: jest.fn().mockResolvedValue(page(1, 1, [infoRecord({ name: '경계 충전소' })])),
+      fetchStatusPage: jest.fn().mockResolvedValue(page(1, 1, [statusRecord()])),
+    })
     const snapshotStore = store()
 
     await new RefreshCoordinator(provider, snapshotStore).refresh({
@@ -124,8 +173,14 @@ describe('RefreshCoordinator', () => {
 
     expect(provider.fetchInfoPage).toHaveBeenCalledTimes(2)
     expect(provider.fetchStatusPage).toHaveBeenCalledTimes(2)
-    expect(provider.fetchInfoPage).toHaveBeenNthCalledWith(1, expect.objectContaining({ zcode: '11' }))
-    expect(provider.fetchInfoPage).toHaveBeenNthCalledWith(2, expect.objectContaining({ zcode: '41' }))
+    expect(provider.fetchInfoPage).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ scope: { type: 'REGION', countryCode: 'KR', regionCode: '11' } }),
+    )
+    expect(provider.fetchInfoPage).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ scope: { type: 'REGION', countryCode: 'KR', regionCode: '41' } }),
+    )
     expect(snapshotStore.writeQuerySnapshot).toHaveBeenCalledTimes(1)
     expect(snapshotStore.writeQuerySnapshot).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -139,10 +194,10 @@ describe('RefreshCoordinator', () => {
   })
 
   it('provider가 empty page를 반환하면 다음 page를 요청하지 않는다', async () => {
-    const provider: jest.Mocked<IKecoProvider> = {
-      fetchInfoPage: jest.fn().mockResolvedValue(page(1, 10, [])),
-      fetchStatusPage: jest.fn().mockResolvedValue(page(1, 10, [])),
-    }
+    const provider = fakeProvider({
+      fetchInfoPage: jest.fn().mockResolvedValue({ ...page(1, 10, []), hasNext: true }),
+      fetchStatusPage: jest.fn().mockResolvedValue({ ...page(1, 10, []), hasNext: true }),
+    })
 
     await new RefreshCoordinator(provider, store()).refresh({
       queryKey: 'keco:empty',
@@ -152,18 +207,24 @@ describe('RefreshCoordinator', () => {
     })
 
     expect(provider.fetchInfoPage).toHaveBeenCalledTimes(1)
+    expect(provider.fetchInfoPage).toHaveBeenCalledWith({
+      scope: { type: 'NATIONWIDE', countryCode: 'KR' },
+      pagination: { type: 'PAGE', page: 1, pageSize: 9_999 },
+    })
     expect(provider.fetchStatusPage).toHaveBeenCalledTimes(1)
   })
 
   it('retryable failure는 재시도하고 non-retryable failure는 즉시 전파한다', async () => {
-    const retryable = new KecoProviderError('timeout', {
+    const retryable = new KecoUpstreamProviderException('timeout', {
       failureKind: 'TIMEOUT',
       retryable: true,
     })
-    const retryProvider: jest.Mocked<IKecoProvider> = {
-      fetchInfoPage: jest.fn().mockRejectedValueOnce(retryable).mockResolvedValue(page(1, 0, [])),
-      fetchStatusPage: jest.fn().mockResolvedValue(page(1, 0, [])),
-    }
+    const retryProvider = fakeProvider({
+      fetchInfoPage: jest
+        .fn()
+        .mockRejectedValueOnce(retryable)
+        .mockResolvedValue(page(1, 0, [])),
+    })
 
     await new RefreshCoordinator(retryProvider, store()).refresh({
       queryKey: 'keco:retry',
@@ -174,14 +235,14 @@ describe('RefreshCoordinator', () => {
     })
     expect(retryProvider.fetchInfoPage).toHaveBeenCalledTimes(2)
 
-    const hardFailure = new KecoProviderError('auth', {
+    const hardFailure = new KecoUpstreamProviderException('auth', {
       failureKind: 'AUTHENTICATION',
       retryable: false,
     })
-    const hardProvider: jest.Mocked<IKecoProvider> = {
+    const hardProvider = fakeProvider({
       fetchInfoPage: jest.fn().mockRejectedValue(hardFailure),
       fetchStatusPage: jest.fn(),
-    }
+    })
 
     await expect(
       new RefreshCoordinator(hardProvider, store()).refresh({

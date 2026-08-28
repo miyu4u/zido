@@ -1,14 +1,19 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { McpException } from 'zido/common'
-import type { IKecoProvider, KecoInfoItem, KecoStatusItem, ProviderPage } from 'zido/charger-providers'
-import { KecoProviderError, KECO_REQUEST_BOUNDS } from 'zido/charger-providers'
+import type {
+  ChargerInfoRecord,
+  ChargerProviderContract,
+  ChargerProviderScope,
+  ChargerStatusRecord,
+} from 'zido/charger-providers'
+import { KecoException, KecoUpstreamProviderException, KECO_REQUEST_BOUNDS } from 'zido/charger-providers'
 import type {
   ChargerSnapshotStore,
   WriteQuerySnapshotInput,
   StationInfoInput,
   ChargerStatusInput,
 } from 'zido/charger-storage'
-import { normalizeKecoStatus, evaluateFreshness, toEffectiveStatus } from './freshness'
+import { evaluateFreshness, toEffectiveStatus } from './freshness'
 
 /** Hard cap on provider pages fetched per refresh to prevent infinite pagination. */
 const MAX_PAGES = 50
@@ -49,7 +54,7 @@ export class RefreshCoordinator {
   private readonly inFlight = new Map<string, Promise<void>>()
 
   constructor(
-    private readonly provider: IKecoProvider,
+    private readonly provider: ChargerProviderContract,
     private readonly store: ChargerSnapshotStore,
   ) {}
 
@@ -90,116 +95,93 @@ export class RefreshCoordinator {
 
     const isNationwide = isNationwideExplicit === true
     const regionCodes =
-      multiRegionCodes && multiRegionCodes.length > 0
-        ? multiRegionCodes
-        : singleZcode
-          ? [singleZcode]
-          : []
+      multiRegionCodes && multiRegionCodes.length > 0 ? multiRegionCodes : singleZcode ? [singleZcode] : []
 
     if (!isNationwide && regionCodes.length === 0) {
       throw new McpException('Explicit collection scope is required', 'INVALID_ARGUMENT', 400)
     }
 
     const observedAt = new Date().toISOString()
-    const infoMap = new Map<string, KecoInfoItem>()
-    const statusMap = new Map<string, KecoStatusItem>()
+    const infoMap = new Map<string, ChargerInfoRecord>()
+    const statusMap = new Map<string, ChargerStatusRecord>()
+    const pageSize = this.provider.capabilities.limits.pageSize.max
+    const scopes: ChargerProviderScope[] = isNationwide
+      ? [{ type: 'NATIONWIDE', countryCode: 'KR' }]
+      : regionCodes.map((regionCode) => ({
+          type: 'REGION' as const,
+          countryCode: 'KR',
+          regionCode,
+        }))
+    const fetchStatusPage = this.provider.fetchStatusPage
 
-    if (isNationwide) {
+    if (!fetchStatusPage) {
+      throw new McpException('Configured charger provider does not support status collection', 'INTERNAL_ERROR', 500)
+    }
+
+    for (const scope of scopes) {
       const infoPages = await this.collectAllPages(
-        (pageNo) =>
+        (page) =>
           this.provider.fetchInfoPage({
-            pageNo,
-            numOfRows: KECO_REQUEST_BOUNDS.DEFAULT_NUM_OF_ROWS,
-            nationwide: true,
+            scope,
+            pagination: { type: 'PAGE', page, pageSize },
           }),
         maxRetries,
         timeoutMs,
       )
       for (const item of infoPages) {
-        infoMap.set(`${item.busiId ?? ''}:${item.statId ?? ''}`, item)
+        infoMap.set(`${item.operatorId ?? ''}:${item.stationId}`, item)
       }
 
       const statusPages = await this.collectAllPages(
-        (pageNo) =>
-          this.provider.fetchStatusPage({
-            pageNo,
-            numOfRows: KECO_REQUEST_BOUNDS.DEFAULT_NUM_OF_ROWS,
-            period: periodMinutes,
-            nationwide: true,
+        (page) =>
+          fetchStatusPage.call(this.provider, {
+            scope,
+            pagination: { type: 'PAGE', page, pageSize },
+            updatedWithinMinutes: periodMinutes,
           }),
         maxRetries,
         timeoutMs,
       )
       for (const item of statusPages) {
-        statusMap.set(`${item.busiId ?? ''}:${item.statId ?? ''}:${item.chgerId ?? ''}`, item)
-      }
-    } else {
-      for (const code of regionCodes) {
-        const infoPages = await this.collectAllPages(
-          (pageNo) =>
-            this.provider.fetchInfoPage({
-              pageNo,
-              numOfRows: KECO_REQUEST_BOUNDS.DEFAULT_NUM_OF_ROWS,
-              zcode: code,
-            }),
-          maxRetries,
-          timeoutMs,
-        )
-        for (const item of infoPages) {
-          infoMap.set(`${item.busiId ?? ''}:${item.statId ?? ''}`, item)
-        }
-
-        const statusPages = await this.collectAllPages(
-          (pageNo) =>
-            this.provider.fetchStatusPage({
-              pageNo,
-              numOfRows: KECO_REQUEST_BOUNDS.DEFAULT_NUM_OF_ROWS,
-              period: periodMinutes,
-              zcode: code,
-            }),
-          maxRetries,
-          timeoutMs,
-        )
-        for (const item of statusPages) {
-          statusMap.set(`${item.busiId ?? ''}:${item.statId ?? ''}:${item.chgerId ?? ''}`, item)
-        }
+        statusMap.set(`${item.operatorId ?? ''}:${item.stationId}:${item.chargerId ?? ''}`, item)
       }
     }
 
-    const infoItems: KecoInfoItem[] = Array.from(infoMap.values())
-    const statusItems: KecoStatusItem[] = Array.from(statusMap.values())
+    const infoItems = Array.from(infoMap.values())
+    const statusItems = Array.from(statusMap.values())
 
     const now = new Date(observedAt)
 
     const stations: StationInfoInput[] = infoItems.map((item) => ({
       source,
-      operatorId: item.busiId ?? null,
-      stationId: item.statId ?? '',
-      name: item.statNm ?? null,
-      address: item.addr ?? item.address ?? null,
-      location: item.lat != null && item.lng != null ? { lat: Number(item.lat), lng: Number(item.lng) } : null,
-      access: item.limitYn === 'Y' ? 'RESTRICTED' : 'PUBLIC',
+      operatorId: item.operatorId,
+      stationId: item.stationId,
+      name: item.name,
+      address: item.address,
+      location: item.location,
+      access: item.access,
       sourceObservedAt: observedAt,
       sourceVersion: 'v1.25',
     }))
 
     const chargers: ChargerStatusInput[] = statusItems.map((item) => {
-      const normalizedStatus = normalizeKecoStatus(item.stat)
+      const normalizedStatus =
+        item.status === 'OUT_OF_SERVICE' || item.status === 'RESERVED' ? 'UNAVAILABLE' : item.status
       const freshness = evaluateFreshness({
-        statusUpdatedAt: item.statUpdDt ?? null,
+        statusUpdatedAt: item.statusUpdatedAt,
         now,
         ttlMs,
       })
       return {
         source,
-        operatorId: item.busiId ?? null,
-        stationId: item.statId ?? '',
-        chargerId: item.chgerId ?? '',
-        rawStatus: item.stat ?? null,
+        operatorId: item.operatorId,
+        stationId: item.stationId,
+        chargerId: item.chargerId ?? '',
+        rawStatus: item.rawStatus,
         normalizedStatus,
         status: toEffectiveStatus(normalizedStatus, freshness),
-        statusUpdatedAt: item.statUpdDt ?? null,
-        observedAt,
+        statusUpdatedAt: item.statusUpdatedAt,
+        observedAt: item.observedAt,
         freshness,
         sourceVersion: 'v1.25',
       }
@@ -222,11 +204,11 @@ export class RefreshCoordinator {
   }
 
   /**
-   * Collects all items across pages, stopping at MAX_PAGES or when the
-   * provider signals no more items via totalCount / empty page.
+   * Collects all items across pages, stopping at MAX_PAGES, an empty page,
+   * or the provider's explicit hasNext boundary.
    */
   private async collectAllPages<T>(
-    fetcher: (pageNo: number) => Promise<ProviderPage<T>>,
+    fetcher: (page: number) => Promise<{ items: T[]; hasNext: boolean }>,
     maxRetries: number,
     timeoutMs: number,
   ): Promise<T[]> {
@@ -236,8 +218,7 @@ export class RefreshCoordinator {
       const result = await this.fetchWithRetry(fetcher, page, maxRetries, timeoutMs)
       collected.push(...result.items)
 
-      const total = result.totalCount ?? 0
-      if (result.items.length === 0 || collected.length >= total) break
+      if (result.items.length === 0 || !result.hasNext) break
     }
 
     return collected
@@ -249,19 +230,19 @@ export class RefreshCoordinator {
    * Backoff: 100 ms × 2^attempt (capped implicitly by maxRetries ≤ 5).
    */
   private async fetchWithRetry<T>(
-    fetcher: (pageNo: number) => Promise<ProviderPage<T>>,
-    pageNo: number,
+    fetcher: (page: number) => Promise<T>,
+    page: number,
     maxRetries: number,
     timeoutMs: number,
-  ): Promise<ProviderPage<T>> {
+  ): Promise<T> {
     let lastErr: unknown
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        return await withTimeout(fetcher(pageNo), timeoutMs)
+        return await withTimeout(fetcher(page), timeoutMs)
       } catch (err: unknown) {
         lastErr = err
-        const retryable = err instanceof KecoProviderError ? err.retryable : false
+        const retryable = err instanceof KecoException ? err.retryable : false
         if (!retryable || attempt >= maxRetries) throw err
         await new Promise<void>((resolve) => setTimeout(resolve, 100 * 2 ** attempt))
       }
@@ -281,7 +262,7 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T
         timer = setTimeout(
           () =>
             reject(
-              new KecoProviderError('KECO refresh timed out', {
+              new KecoUpstreamProviderException('KECO refresh timed out', {
                 failureKind: 'TIMEOUT',
                 retryable: true,
               }),

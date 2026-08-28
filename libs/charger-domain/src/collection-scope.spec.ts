@@ -1,4 +1,4 @@
-import type { IKecoProvider } from 'zido/charger-providers'
+import type { ChargerProviderContract } from 'zido/charger-providers'
 import type { ChargerSnapshotStore } from 'zido/charger-storage'
 import {
   CollectionScopeInputSchema,
@@ -11,12 +11,36 @@ import { RefreshCoordinator } from './refresh-coordinator'
 /**
  * Scope 안전성 테스트에서 provider 호출 여부만 관측하는 fake다.
  */
-function provider(): jest.Mocked<IKecoProvider> {
-  const empty = { resultCode: '00', resultMsg: 'OK', pageNo: 1, numOfRows: 9999, totalCount: 0, items: [] }
+function provider(): jest.Mocked<ChargerProviderContract> & { fetchStatusPage: jest.Mock } {
+  const empty = {
+    providerId: 'keco',
+    page: 1,
+    pageSize: 9_999,
+    totalCount: 0,
+    nextCursor: null,
+    hasNext: false,
+    observedAt: '2026-08-29T00:00:00.000Z',
+    providerMetadata: {},
+    items: [],
+  }
   return {
+    providerId: 'keco',
+    capabilities: {
+      scopes: ['NATIONWIDE', 'REGION'],
+      pagination: ['PAGE'],
+      status: 'DYNAMIC',
+      connectorDetails: true,
+      powerDetails: true,
+      tariffs: false,
+      limits: {
+        pageSize: { min: 10, max: 9_999 },
+        statusUpdatedWithinMinutes: { min: 1, max: 10 },
+        radiusMetersMax: null,
+      },
+    },
     fetchInfoPage: jest.fn().mockResolvedValue(empty),
     fetchStatusPage: jest.fn().mockResolvedValue(empty),
-  } as unknown as jest.Mocked<IKecoProvider>
+  } as jest.Mocked<ChargerProviderContract> & { fetchStatusPage: jest.Mock }
 }
 
 /**
@@ -44,9 +68,7 @@ describe('collection scope contract', () => {
     expect(CollectionScopeInputSchema.safeParse({ mode: 'REGIONS', regionCodes: [] }).success).toBe(false)
     expect(CollectionScopeInputSchema.safeParse({ mode: 'REGIONS', regionCodes: ['99'] }).success).toBe(false)
     expect(CollectionScopeInputSchema.safeParse({ mode: 'NATIONWIDE' }).success).toBe(false)
-    expect(
-      CollectionScopeInputSchema.safeParse({ mode: 'NATIONWIDE', acknowledgeNationwide: true }).success,
-    ).toBe(true)
+    expect(CollectionScopeInputSchema.safeParse({ mode: 'NATIONWIDE', acknowledgeNationwide: true }).success).toBe(true)
     const metadataBase = {
       scopeSource: 'NATIONWIDE',
       collectionTriggered: false,
@@ -95,10 +117,7 @@ describe('collection scope contract', () => {
   it('지원 경계 밖 AUTO는 provider 호출 전 COLLECTION_SCOPE_REQUIRED로 종료한다', async () => {
     const snapshotStore = store()
     const chargerProvider = provider()
-    const service = new ChargerService(
-      snapshotStore,
-      new RefreshCoordinator(chargerProvider, snapshotStore),
-    )
+    const service = new ChargerService(snapshotStore, new RefreshCoordinator(chargerProvider, snapshotStore))
 
     await expect(service.searchNearby({ lat: 35.1796, lng: 129.0756, radiusM: 3_000 })).rejects.toMatchObject({
       code: 'COLLECTION_SCOPE_REQUIRED',
@@ -120,9 +139,7 @@ describe('collection scope contract', () => {
       failingResolver,
     )
 
-    await expect(
-      service.searchNearby({ lat: 37.556, lng: 126.972, radiusM: 3_000 }),
-    ).rejects.toMatchObject({
+    await expect(service.searchNearby({ lat: 37.556, lng: 126.972, radiusM: 3_000 })).rejects.toMatchObject({
       code: 'COLLECTION_SCOPE_REQUIRED',
       status: 409,
       scope: expect.objectContaining({ unresolvedReason: 'BOUNDARY_RESOLUTION_FAILED' }),
@@ -190,10 +207,7 @@ describe('collection scope contract', () => {
       .mockResolvedValue(bundle)
     const snapshotStore = store({ readQuerySnapshot })
     const chargerProvider = provider()
-    const service = new ChargerService(
-      snapshotStore,
-      new RefreshCoordinator(chargerProvider, snapshotStore),
-    )
+    const service = new ChargerService(snapshotStore, new RefreshCoordinator(chargerProvider, snapshotStore))
 
     await service.searchNearby({ lat: 37.556, lng: 126.972, radiusM: 1_000 })
     await service.searchNearby({ lat: 37.57, lng: 126.99, radiusM: 2_000 })
@@ -230,10 +244,7 @@ describe('collection scope contract', () => {
     }
     const readQuerySnapshot = jest.fn().mockResolvedValue(bundle)
     const snapshotStore = store({ readQuerySnapshot })
-    const serviceV1 = new ChargerService(
-      snapshotStore,
-      new RefreshCoordinator(provider(), snapshotStore),
-    )
+    const serviceV1 = new ChargerService(snapshotStore, new RefreshCoordinator(provider(), snapshotStore))
     const versionedResolver = {
       resolveScope: jest.fn().mockResolvedValue({
         coverage: 'COMPLETE',
@@ -291,10 +302,7 @@ describe('collection scope contract', () => {
       readQuerySnapshot: jest.fn().mockResolvedValueOnce(null).mockResolvedValueOnce(null).mockResolvedValue(bundle),
     })
     const chargerProvider = provider()
-    const service = new ChargerService(
-      snapshotStore,
-      new RefreshCoordinator(chargerProvider, snapshotStore),
-    )
+    const service = new ChargerService(snapshotStore, new RefreshCoordinator(chargerProvider, snapshotStore))
 
     const result = await service.searchNearby({
       lat: 37.55,
@@ -308,8 +316,12 @@ describe('collection scope contract', () => {
       regionCodes: ['11'],
       candidateRegions: ['11', '41'],
     })
-    expect(chargerProvider.fetchInfoPage).toHaveBeenCalledWith(expect.objectContaining({ zcode: '11' }))
-    expect(chargerProvider.fetchInfoPage).not.toHaveBeenCalledWith(expect.objectContaining({ zcode: '41' }))
+    expect(chargerProvider.fetchInfoPage).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: { type: 'REGION', countryCode: 'KR', regionCode: '11' } }),
+    )
+    expect(chargerProvider.fetchInfoPage).not.toHaveBeenCalledWith(
+      expect.objectContaining({ scope: { type: 'REGION', countryCode: 'KR', regionCode: '41' } }),
+    )
   })
 
   it('운영 allow와 호출 acknowledgement가 모두 true일 때만 explicit nationwide fetch를 시작한다', async () => {
@@ -339,7 +351,11 @@ describe('collection scope contract', () => {
       scope: { mode: 'NATIONWIDE', acknowledgeNationwide: true },
     })
 
-    expect(chargerProvider.fetchInfoPage).toHaveBeenCalledWith(expect.objectContaining({ nationwide: true }))
-    expect(chargerProvider.fetchStatusPage).toHaveBeenCalledWith(expect.objectContaining({ nationwide: true }))
+    expect(chargerProvider.fetchInfoPage).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: { type: 'NATIONWIDE', countryCode: 'KR' } }),
+    )
+    expect(chargerProvider.fetchStatusPage).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: { type: 'NATIONWIDE', countryCode: 'KR' } }),
+    )
   })
 })
