@@ -156,6 +156,9 @@ cp .env.example .env
 - 공통 configuration, logger, exception, input validation은 `libs/common`과 `zido/common`이 소유하며 legacy module alias를 남기지 않습니다.
 - input validation 공개 함수의 JSDoc은 검증 대상과 허용 범위, 각 `@param`, 성공 및 실패 `@returns`를 한글로 구체적으로 서술합니다.
 - TypeScript toolchain은 6.0 이상을 유지하고 `ts-jest`, `ts-loader`, `typescript-eslint`의 peer 호환 범위를 함께 갱신합니다.
+- NestJS package를 갱신할 때 runtime과 testing의 major를 맞추고 CLI·schematics의 peer와 Node engine 범위를 확인합니다.
+- NestJS 12의 ESM package를 사용하는 Jest 실행은 `package.json`의 test script로 수행합니다. 새 test script에도 `--experimental-vm-modules`를 적용합니다.
+- Nest CLI의 webpack build에 필요한 compiler peer package는 직접 devDependency로 관리하고 세 application의 build를 검증합니다.
 - 도메인 및 provider 실패는 명시적 `Exception`으로 전달하고 HTTP 경계에서는 global `ExceptionFilter`로 응답을 작성합니다.
 - service의 공개 메소드는 interface contract로 선언하고, arguments와 result payload는 `type` 또는 `class`로 정의하며 dependency는 constructor로 주입합니다.
 - `mcp-runtime`의 선언에는 의미 있는 multiline JSDoc 한글 주석을 작성하고, dependency는 property `@Inject` decorator가 아닌 constructor로 주입합니다.

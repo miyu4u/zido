@@ -57,7 +57,7 @@ Zido는 `PROVIDER_ORDER`에 지정된 순서로 provider를 호출합니다. API
 
 ## 요구 사항
 
-- Node.js 20+
+- Node.js `^24.15.0 || >=26.0.0` (Nest CLI toolchain과 Jest의 ESM 로딩 요구 범위)
 - 하나 이상의 지도 API credential
 
 ## 설치
@@ -295,6 +295,10 @@ npm run test
 npm run build
 ```
 
+Jest의 모든 test script는 `--experimental-vm-modules`로 NestJS 12의 ESM package를 로드합니다. 테스트 프로세스에서는 `--disable-warning=ExperimentalWarning`으로 ExperimentalWarning 종류 전체의 출력을 억제합니다.
+
+Nest CLI 12에서 webpack은 deprecated 상태입니다. 기존 webpack configuration의 alias를 사용하는 build를 위해 compiler peer package를 직접 devDependency로 관리합니다.
+
 Application별 build:
 
 ```bash
@@ -313,7 +317,7 @@ node dist/apps/cli/main.js
 
 ## 기술 스택
 
-- NestJS 11
+- NestJS 12
 - TypeScript
 - `@modelcontextprotocol/sdk`
 - Express
