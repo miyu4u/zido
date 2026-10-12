@@ -10,6 +10,7 @@ import { z } from 'zod'
 export interface McpToolRegistrarServiceInterface {
   /**
    * 지원하는 place tool과 handler를 전달받은 MCP server에 연결합니다.
+   * 동기 등록 실패도 Promise rejection으로 전달하여 caller의 비동기 오류 처리를 유지합니다.
    */
   registerTools(server: McpServer): Promise<void>
 }
@@ -18,10 +19,17 @@ export interface McpToolRegistrarServiceInterface {
 export class McpToolRegistrarService implements McpToolRegistrarServiceInterface {
   constructor(private readonly placeService: PlaceService) {}
 
+  registerTools(server: McpServer): Promise<void> {
+    return new Promise<void>((resolve) => {
+      this.registerPlaceTools(server)
+      resolve()
+    })
+  }
+
   /**
-   * 입력 검증과 오류 응답을 포함한 place tool handler 전체를 server에 등록합니다.
+   * 입력 검증과 오류 응답을 포함한 place tool handler 전체를 동기적으로 server에 등록합니다.
    */
-  async registerTools(server: McpServer): Promise<void> {
+  private registerPlaceTools(server: McpServer): void {
     server.registerTool(
       'place_resolve',
       {

@@ -6,7 +6,7 @@ import type { PlaceResolveOutput, GeoGeocodeOutput, PlaceSearchNearbyOutput } fr
 
 // 1. zido/common 모듈을 mock하여 deterministic config를 보장한다.
 jest.mock('zido/common', () => {
-  const actual = jest.requireActual('zido/common') as Record<string, unknown>
+  const actual = jest.requireActual('zido/common')
   return {
     ...actual,
     config: {

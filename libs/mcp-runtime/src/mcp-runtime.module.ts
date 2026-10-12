@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common'
 import { PlaceDomainModule } from 'zido/place-domain'
 import { McpServerFactory } from './mcp-server-factory.service'
-import { McpToolRegistrarService } from './register-tools'
+import { McpToolRegistrarService } from './mcp-tool-registrar.service'
 
 @Module({
   imports: [PlaceDomainModule],

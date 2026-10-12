@@ -63,7 +63,9 @@ export class StreamableHttpSessionRegistry implements StreamableHttpSessionRegis
       createdAt: now,
       lastAccessedAt: now,
     })
-    transport.onclose = () => this.delete(sessionId)
+    transport.onclose = () => {
+      this.closeSession(sessionId)
+    }
     transport.onerror = (error) => logger.error({ error, sessionId }, 'Streamable HTTP transport error')
   }
 
@@ -75,7 +77,7 @@ export class StreamableHttpSessionRegistry implements StreamableHttpSessionRegis
     if (!session) return undefined
     const now = Date.now()
     if (now - session.lastAccessedAt > this.maxAgeMs) {
-      void this.delete(sessionId)
+      this.closeSession(sessionId)
       return undefined
     }
     session.lastAccessedAt = now
@@ -91,5 +93,14 @@ export class StreamableHttpSessionRegistry implements StreamableHttpSessionRegis
     this.sessions.delete(sessionId)
     await session.transport.close()
     return true
+  }
+
+  /**
+   * 대기할 수 없는 종료 callback과 idle timeout의 삭제 실패를 기록해 미처리 rejection을 방지한다.
+   */
+  private closeSession(sessionId: SessionId): void {
+    void this.delete(sessionId).catch((error: unknown) => {
+      logger.error({ error, sessionId }, 'Streamable HTTP session close failed')
+    })
   }
 }

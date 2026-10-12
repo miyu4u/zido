@@ -10,7 +10,7 @@ jest.mock('zido/common', () => {
   /**
    * 원본 common export를 유지한 채 HTTP e2e에 필요한 config만 고정한다.
    */
-  const actual = jest.requireActual('zido/common') as Record<string, unknown>
+  const actual = jest.requireActual('zido/common')
   return {
     ...actual,
     config: {
@@ -167,7 +167,7 @@ describe('HTTP Server E2E', () => {
     /**
      * initialize 응답 헤더에서 추출한 session 식별자이다.
      */
-    const sessionId = initializeResponse.headers['mcp-session-id'] as string
+    const sessionId = initializeResponse.headers['mcp-session-id']
     expect(sessionId).toBeDefined()
     expect(typeof sessionId).toBe('string')
 

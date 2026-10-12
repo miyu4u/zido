@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { Injectable } from '@nestjs/common'
 import { config, logger } from 'zido/common'
-import { McpToolRegistrarService } from './register-tools'
+import { McpToolRegistrarService } from './mcp-tool-registrar.service'
 
 export interface McpServerFactoryInterface {
   /**

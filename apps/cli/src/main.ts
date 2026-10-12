@@ -327,7 +327,25 @@ function readCommandInput(parsed: ParsedArguments): CommandInput {
 function formatFields(value: Record<string, unknown>, prefix = ''): string[] {
   return Object.entries(value).map(([key, field]) => {
     const label = key.replace(/[A-Z]/g, (letter) => ` ${letter}`).replace(/^./, (letter) => letter.toUpperCase())
-    const rendered = typeof field === 'object' ? JSON.stringify(field) : String(field)
+    /**
+     * Object는 JSON으로, function은 자체 문자열 표현으로, primitive는 명시적 변환으로 출력한다.
+     */
+    let rendered: string | undefined
+    switch (typeof field) {
+      case 'string':
+      case 'number':
+      case 'boolean':
+      case 'bigint':
+      case 'symbol':
+      case 'undefined':
+        rendered = String(field)
+        break
+      case 'function':
+        rendered = field.toString()
+        break
+      default:
+        rendered = JSON.stringify(field)
+    }
     return `${prefix}${label}: ${rendered}`
   })
 }

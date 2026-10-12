@@ -13,7 +13,7 @@ jest.mock('zido/common', () => {
   /**
    * 실제 common export를 유지한 채 config만 테스트용으로 덮어쓴다.
    */
-  const actual = jest.requireActual('zido/common') as Record<string, unknown>
+  const actual = jest.requireActual('zido/common')
   return {
     ...actual,
     config: {
